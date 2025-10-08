@@ -18,10 +18,11 @@ MongoDB – Cơ sở dữ liệu NoSQL lưu thông tin người dùng, sản ph�
 ## Cài đặt
 ### Download source code
 git clone <https://github.com/haohaoo78/22682921-DoanThiMyHao-EProject.git>
+
 cd EProject
 
 ### Cài đặt dependencies
-Trong từng service (cd <servide>), chạy:
+Trong từng service (cd services), chạy:
 
 npm install
 
@@ -42,23 +43,26 @@ order (order handling)
 gateway (API gateway)
 
 ### Tạo file .env cho từng service
-auth/.env
 
+auth/.env
 MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
 JWT_SECRET=<your_jwt_secret_key>
-RABBITMQ_URL=amqp://<your_rabbitmq_user>:<your_rabbitmq_password>@rabbitmq:5672
 
 product/.env
-MONGODB_PRODUCT_URI=mongodb://<mongo_host>:27017/productdb
-RABBITMQ_URL=amqp://<your_rabbitmq_user>:<your_rabbitmq_password>@rabbitmq:5672
+MONGODB_AUTH_URI= mongodb://<mongo_host>:27017/authdb
+MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
+JWT_SECRET=<your_jwt_secret_key>
 
 order/.env
 MONGODB_ORDER_URI=mongodb://<mongo_host>:27017/orderdb
-RABBITMQ_URL=amqp://<your_rabbitmq_user>:<your_rabbitmq_password>@rabbitmq:5672
+MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
+MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
+JWT_SECRET=<your_jwt_secret_key>
 
 ### Chạy toàn bộ hệ thống bằng Docker
 
 docker-compose up --build
+![alt text](img_readme/image.png)
 
 ### Sau khi chạy, hệ thống hoạt động ở:
 
@@ -71,28 +75,34 @@ Order Service: http://localhost:3002
 API Gateway: http://localhost:3003
 
 RabbitMQ Dashboard: http://localhost:15672
- (user: haohaao78, pass: Shatou5114)
+ (user: myname, pass: mypass)
 
 ## Kiểm thử bằng Postman
-
-Các API chính có thể test qua Postman:
-
 ### Auth Service
 
 POST /auth/register → Đăng ký tài khoản
+![alt text](img_readme/image-1.png)
+
+check in database
+![alt text](img_readme/image-2.png)
 
 POST /auth/login → Đăng nhập, nhận JWT token
-
-GET /auth/dashboard → Kiểm tra token (yêu cầu header x-auth-token)
+![alt text](img_readme/image-3.png)
 
 ### Product Service
 
 POST /products → Tạo sản phẩm (cần JWT token)
+![alt text](img_readme/image-4.png)
+
+check in database
+![alt text](img_readme/image-5.png)
 
 GET /products → Lấy danh sách sản phẩm
+![alt text](img_readme/image-6.png)
 
 POST /products/buy → Đặt hàng sản phẩm
+![alt text](img_readme/image-7.png)
 
 ### Order Service
-
-Tự động nhận dữ liệu qua RabbitMQ và lưu vào MongoDB
+Tự động nhận dữ liệu đơn hàng được gửi từ Product Service thông qua RabbitMQ và lưu trữ vào MongoDB.
+![alt text](img_readme/image-8.png)
