@@ -44,14 +44,14 @@ gateway (API gateway)
 
 ### Tạo file .env cho từng service
 
-auth/.env
+#### auth/.env
 
 MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
 
 JWT_SECRET=<your_jwt_secret_key>
 
 
-product/.env
+#### product/.env
 
 MONGODB_AUTH_URI= mongodb://<mongo_host>:27017/authdb
 
@@ -60,7 +60,7 @@ MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
 JWT_SECRET=<your_jwt_secret_key>
 
 
-order/.env
+#### order/.env
 
 MONGODB_ORDER_URI=mongodb://<mongo_host>:27017/orderdb
 
@@ -92,7 +92,12 @@ MongoDB: mongodb://localhost:27017
 (default database: authdb, productdb, orderdb)
 
 ## Kiểm thử bằng Postman
-### Auth Service
+
+Cổng Gateway: 3003
+
+Các service giao tiếp thông qua API Gateway để đảm bảo tính bảo mật và thống nhất endpoint.
+
+### Auth Service - Port 3000
 
 POST /auth/register → Đăng ký tài khoản
 ![alt text](img_readme/image-1.png)
@@ -103,20 +108,20 @@ check in database
 POST /auth/login → Đăng nhập, nhận JWT token
 ![alt text](img_readme/image-3.png)
 
-### Product Service
+### Product Service - Port 3001
 
-POST /products → Tạo sản phẩm (cần JWT token)
+POST /products/api/products → Tạo sản phẩm (cần JWT token)
 ![alt text](img_readme/image-4.png)
 
 check in database
 ![alt text](img_readme/image-5.png)
 
-GET /products → Lấy danh sách sản phẩm
+GET /products/api/products → Lấy danh sách sản phẩm
 ![alt text](img_readme/image-6.png)
 
-POST /products/buy → Đặt hàng sản phẩm
+POST products/api/products/buy/ → Đặt hàng sản phẩm
 ![alt text](img_readme/image-7.png)
 
-### Order Service
+### Order Service - Port 3002
 Tự động nhận dữ liệu đơn hàng được gửi từ Product Service thông qua RabbitMQ và lưu trữ vào MongoDB.
 ![alt text](img_readme/image-8.png)
