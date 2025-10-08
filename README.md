@@ -88,6 +88,9 @@ API Gateway: http://localhost:3003
 RabbitMQ Dashboard: http://localhost:15672
  (user: myname, pass: mypass)
 
+MongoDB: mongodb://localhost:27017
+(default database: authdb, productdb, orderdb)
+
 ## Kiểm thử bằng Postman
 ### Auth Service
 
