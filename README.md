@@ -74,7 +74,7 @@ JWT_SECRET=<your_jwt_secret_key>
 
 docker-compose up --build
 ![alt text](img_readme/image.png)
-
+![alt text](img_readme/image-9.png)
 ### Sau khi chạy, hệ thống hoạt động ở:
 
 Auth Service: http://localhost:3000
