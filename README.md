@@ -45,18 +45,29 @@ gateway (API gateway)
 ### Tạo file .env cho từng service
 
 auth/.env
+
 MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
+
 JWT_SECRET=<your_jwt_secret_key>
+
 
 product/.env
+
 MONGODB_AUTH_URI= mongodb://<mongo_host>:27017/authdb
+
 MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
+
 JWT_SECRET=<your_jwt_secret_key>
 
+
 order/.env
+
 MONGODB_ORDER_URI=mongodb://<mongo_host>:27017/orderdb
+
 MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
+
 MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
+
 JWT_SECRET=<your_jwt_secret_key>
 
 ### Chạy toàn bộ hệ thống bằng Docker
