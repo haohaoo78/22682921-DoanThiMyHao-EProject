@@ -9,17 +9,17 @@ class ProductsService {
   }
 
   async createProduct(product) {
-    const createdProduct = await this.productsRepository.create(product);
+    const createdProduct = await this.productsRepository.create(product); 
     return createdProduct;
   }
 
   async getProductById(productId) {
-    const product = await this.productsRepository.findById(productId);
+    const product = await this.productsRepository.findById(productId); 
     return product;
   }
 
   async getProducts() {
-    const products = await this.productsRepository.findAll();
+    const products = await this.productsRepository.findAll(); 
     return products;
   }
 }

@@ -29,45 +29,40 @@ class App {
   
     setTimeout(async () => {
       try {
-        // const amqpServer = "amqp://haohaao78:Shatou5114@rabbitmq:5672";
-        // const amqpServer = "amqp://haohaao78:Shatou5114@127.0.0.1";
         const user = process.env.RABBITMQ_USER;
         const pass = process.env.RABBITMQ_PASS;
-        const host = "rabbitmq"; // tên service RabbitMQ trong docker-compose
+        const host = "rabbitmq";
         const port = 5672;
-        // const host = "localhost"; // tên service RabbitMQ trong docker-compose
-        // const port = 5672;
-
         const amqpServer = `amqp://${user}:${pass}@${host}:${port}`;
         const connection = await amqp.connect(amqpServer);
         console.log("Connected to RabbitMQ");
-        const channel = await connection.createChannel();
+        const channel = await connection.createChannel(); 
         await channel.assertQueue("orders");
   
-        channel.consume("orders", async (data) => {
+        channel.consume("orders", async (data) => { 
           // Consume messages from the order queue on buy
           console.log("Consuming ORDER service");
-          const { products, username, orderId } = JSON.parse(data.content);
+          const { products, username, orderId } = JSON.parse(data.content); 
   
           const newOrder = new Order({
             products,
             user: username,
-            totalPrice: products.reduce((acc, product) => acc + product.price, 0),
+            totalPrice: products.reduce((acc, product) => acc + product.price, 0), 
           });
   
           // Save order to DB
-          await newOrder.save();
+          await newOrder.save(); 
   
           // Send ACK to ORDER service
-          channel.ack(data);
-          console.log("Order saved to DB and ACK sent to ORDER queue");
+          channel.ack(data); 
+          console.log("Order saved to DB and ACK sent to ORDER queue"); 
   
           // Send fulfilled order to PRODUCTS service
           // Include orderId in the message
           const { user, products: savedProducts, totalPrice } = newOrder.toJSON();
-          channel.sendToQueue(
+          channel.sendToQueue( 
             "products",
-            Buffer.from(JSON.stringify({ orderId, user, products: savedProducts, totalPrice }))
+            Buffer.from(JSON.stringify({ orderId, user, products: savedProducts, totalPrice })) 
           );
         });
       } catch (err) {
@@ -79,7 +74,7 @@ class App {
 
 
   start() {
-    this.server = this.app.listen(config.port, () =>
+    this.server = this.app.listen(config.port, () => // eslint-disable-line no-unused-vars
       console.log(`Server started on port ${config.port}`)
     );
   }

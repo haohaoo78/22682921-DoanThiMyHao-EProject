@@ -13,8 +13,8 @@ const Product = mongoose.model("Product", productSchema);
 
 class ProductsRepository {
   async create(product) {
-    const createdProduct = await Product.create(product);
-    return createdProduct.toObject();
+    const createdProduct = await Product.create(product); 
+    return createdProduct.toObject(); 
   }
 
   async findById(productId) {
@@ -23,7 +23,7 @@ class ProductsRepository {
   }
 
   async findAll() {
-    const products = await Product.find().lean();
+    const products = await Product.find().lean(); 
     return products;
   }
 }

@@ -10,25 +10,21 @@ class MessageBroker {
 
     setTimeout(async () => {
       try {
-        //const connection = await amqp.connect("amqp://localhost:5672");
-        // Lấy thông tin từ biến môi trường Docker Compose
         const user = process.env.RABBITMQ_USER;
         const pass = process.env.RABBITMQ_PASS;
-        const host = "rabbitmq"; // tên service RabbitMQ trong docker-compose
+        const host = "rabbitmq"; 
         const port = 5672;
-        // const host = "localhost"; // tên service RabbitMQ trong docker-compose
-        // const port = 5672;
         const connection = await amqp.connect(`amqp://${user}:${pass}@${host}:${port}`);
         this.channel = await connection.createChannel();
-        await this.channel.assertQueue("products");
+        await this.channel.assertQueue("products"); 
         console.log("RabbitMQ connected");
       } catch (err) {
         console.error("Failed to connect to RabbitMQ:", err.message);
       }
-    }, 20000); // delay 10 seconds to wait for RabbitMQ to start
+    }, 20000); // delay 20 seconds to wait for RabbitMQ to start
   }
 
-  async publishMessage(queue, message) {
+  async publishMessage(queue, message) { 
     if (!this.channel) {
       console.error("No RabbitMQ channel available.");
       return;
@@ -44,18 +40,18 @@ class MessageBroker {
     }
   }
 
-  async consumeMessage(queue, callback) {
+  async consumeMessage(queue, callback) { 
     if (!this.channel) {
-      console.error("No RabbitMQ channel available.");
+      console.error("No RabbitMQ channel available."); 
       return;
     }
 
     try {
-      await this.channel.consume(queue, (message) => {
-        const content = message.content.toString();
-        const parsedContent = JSON.parse(content);
+      await this.channel.consume(queue, (message) => { 
+        const content = message.content.toString(); 
+        const parsedContent = JSON.parse(content); 
         callback(parsedContent);
-        this.channel.ack(message);
+        this.channel.ack(message); 
       });
     } catch (err) {
       console.log(err);
