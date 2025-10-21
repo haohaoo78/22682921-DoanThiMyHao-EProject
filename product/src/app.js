@@ -8,7 +8,6 @@ require("dotenv").config();
 class App {
   constructor() {
     this.app = express();
-    this.connectDB();
     this.setMiddlewares();
     this.setRoutes();
     this.setupMessageBroker();
@@ -40,9 +39,9 @@ class App {
     MessageBroker.connect();
   }
 
-  start() {
-    this.server = this.app.listen(3001, () =>
-      console.log("Server started on port 3001")
+  start(port = config.port) {
+    this.server = this.app.listen(port, () =>
+      console.log(`Server started on port ${port}`)
     );
   }
 

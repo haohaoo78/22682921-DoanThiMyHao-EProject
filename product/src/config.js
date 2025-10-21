@@ -18,7 +18,9 @@ module.exports = {
 
   // Test user (dùng cho CI/CD testing)
   testUser: {
-    username: process.env.LOGIN_TEST_USER || "testuser",
-    password: process.env.LOGIN_TEST_PASSWORD || "password",
+    username: process.env.LOGIN_TEST_USER || "Haohao78091111",
+    password: process.env.LOGIN_TEST_PASSWORD || "Shatou5114*",
   },
+  // Auth service URL
+  authServiceUrl: process.env.AUTH_SERVICE_URL || "http://auth:3000",
 };
