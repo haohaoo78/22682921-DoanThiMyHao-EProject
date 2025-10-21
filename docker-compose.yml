@@ -31,10 +31,6 @@ services:
     depends_on:
       - mongo
       - rabbitmq
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: haohaao78
-      RABBITMQ_PASSWORD: Shatou5114
 
   order:
     build:
@@ -46,10 +42,6 @@ services:
     depends_on:
       - mongo
       - rabbitmq
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: haohaao78
-      RABBITMQ_PASSWORD: Shatou5114
 
   product:
     build:
@@ -61,10 +53,6 @@ services:
     depends_on:
       - mongo
       - rabbitmq
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: haohaao78
-      RABBITMQ_PASSWORD: Shatou5114
 
   gateway:
     build:
@@ -77,10 +65,6 @@ services:
       - auth
       - product
       - order
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: haohaao78
-      RABBITMQ_PASSWORD: Shatou5114
 
 volumes:
   mongo-data:
