@@ -29,10 +29,7 @@ class App {
   
     setTimeout(async () => {
       try {
-        const user = process.env.RABBITMQ_USER;
-        const pass = process.env.RABBITMQ_PASS;
-        const host = "rabbitmq";
-        const port = 5672;
+        const { user, pass, host, port, queueName } = config.rabbitMQ;
         const amqpServer = `amqp://${user}:${pass}@${host}:${port}`;
         const connection = await amqp.connect(amqpServer);
         console.log("Connected to RabbitMQ");

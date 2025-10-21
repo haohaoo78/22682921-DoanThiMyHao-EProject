@@ -1,4 +1,6 @@
 const amqp = require("amqplib");
+const rabbitMQConfig = require("../config").rabbitMQ;
+
 
 class MessageBroker {
   constructor() {
@@ -10,10 +12,7 @@ class MessageBroker {
 
     setTimeout(async () => {
       try {
-        const user = process.env.RABBITMQ_USER;
-        const pass = process.env.RABBITMQ_PASS;
-        const host = "rabbitmq"; 
-        const port = 5672;
+        const { user, pass, host, port, queueName } = rabbitMQConfig;
         const connection = await amqp.connect(`amqp://${user}:${pass}@${host}:${port}`);
         this.channel = await connection.createChannel();
         await this.channel.assertQueue("products"); 

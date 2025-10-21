@@ -1,0 +1,115 @@
+name: CI/CD EProject Microservices
+
+# Trigger workflow khi push hoặc tạo PR lên nhánh main
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    # Các service phụ trợ: MongoDB + RabbitMQ
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017  # Port local trong runner
+        options: >-
+          --health-cmd="mongo --eval 'db.adminCommand(\"ping\")'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672   # Port AMQP
+          - 15672:15672 # Port quản lý RabbitMQ
+        options: >-
+          --health-cmd="rabbitmqctl status"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      # 1️⃣ Lấy source code từ repo
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2️⃣ Cài đặt Docker Buildx để build multi-platform (nếu cần)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # ========================
+      # 3️⃣ Build & Test Auth service
+      # ========================
+      - name: Build Auth service
+        run: docker build -t auth-service ./auth
+        # Chú thích: ./auth là đường dẫn tới thư mục service Auth trong repo
+
+      - name: Test Auth service
+        run: docker run --rm --network host --env-file ./auth/.env auth-service npm test
+        # Chú thích:
+        # --network host: container sẽ kết nối MongoDB & RabbitMQ đang chạy
+        # --env-file ./auth/.env: file env chứa biến MONGODB_URI, JWT_SECRET, RABBITMQ_USER/PASS
+
+      # ========================
+      # 4️⃣ Build & Test Product service
+      # ========================
+      - name: Build Product service
+        run: docker build -t product-service ./product
+        # ./product là thư mục service Product
+
+      - name: Test Product service
+        run: docker run --rm --network host --env-file ./product/.env product-service npm test
+
+      # ========================
+      # 5️⃣ Build & Test Order service
+      # ========================
+      - name: Build Order service
+        run: docker build -t order-service ./order
+
+      - name: Test Order service
+        run: docker run --rm --network host --env-file ./order/.env order-service npm test
+
+      # ========================
+      # 6️⃣ Build & Test Gateway service
+      # ========================
+      - name: Build Gateway service
+        run: docker build -t gateway-service ./api-gateway
+
+      - name: Test Gateway service
+        run: docker run --rm --network host --env-file ./api-gateway/.env gateway-service npm test
+
+      # ========================
+      # 7️⃣ Push images Docker Hub (nếu test pass)
+      # ========================
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }} # GitHub Secrets: Docker Hub username
+          password: ${{ secrets.DOCKER_PASSWORD }} # GitHub Secrets: Docker Hub password/token
+
+      # Push từng service
+      - name: Push Auth image
+        run: |
+          docker tag auth-service ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
+
+      - name: Push Product image
+        run: |
+          docker tag product-service ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+
+      - name: Push Order image
+        run: |
+          docker tag order-service ${{ secrets.DOCKER_USERNAME }}/order-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/order-service:latest
+
+      - name: Push Gateway image
+        run: |
+          docker tag gateway-service ${{ secrets.DOCKER_USERNAME }}/gateway-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/gateway-service:latest
