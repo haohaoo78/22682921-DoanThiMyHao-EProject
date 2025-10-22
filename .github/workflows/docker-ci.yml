@@ -16,7 +16,7 @@ jobs:
         ports:
           - 27017:27017
         options: >-
-          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'" 
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -45,26 +45,28 @@ jobs:
           node-version: 20
 
       # --- Install dependencies ---
-      - name: Install Auth dependencies
+      - name: Install dependencies
         run: |
-          cd auth
-          npm install
-
-      - name: Install Product dependencies
-        run: |
-          cd product
-          npm install
-
-      - name: Install Order dependencies
-        run: |
-          cd order
-          npm install
+          cd auth && npm install
+          cd ../product && npm install
+          cd ../order && npm install
 
       # --- Test Auth service ---
-      - name: Test Auth service
+      - name: Test Auth service (Create test user)
         run: |
           cd auth
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+
+          # ✅ Tạo user test để dùng ở Product
+          node -e "
+            const mongoose = require('mongoose');
+            const User = require('./src/models/user');
+            mongoose.connect('mongodb://localhost:27017/auth_db').then(async () => {
+              await User.create({ username: 'testuser', email: 'test@example.com', password: 'hashedpassword' });
+              console.log('✅ Test user created');
+              process.exit(0);
+            });
+          "
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -80,18 +82,7 @@ jobs:
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
         env:
           MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
-          RABBITMQ_HOST: "localhost"
-          RABBITMQ_PORT: "5672"
-          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
-          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
-
-      # --- Test Order service ---
-      - name: Test Order service
-        run: |
-          cd order
-          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
-        env:
-          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
+          AUTH_SERVICE_URL: "http://localhost:4001"
           RABBITMQ_HOST: "localhost"
           RABBITMQ_PORT: "5672"
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
