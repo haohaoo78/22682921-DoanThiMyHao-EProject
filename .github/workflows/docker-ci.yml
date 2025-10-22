@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test:
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -39,56 +39,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Node
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      # --- Test Auth service ---
-      - name: Build & Test Auth
+      - name: Install dependencies
         run: |
-          docker build -t auth-service ./auth
-          docker run -d --name auth \
-            -e MONGODB_AUTH_URI="mongodb://localhost:27017/auth_db" \
-            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="localhost" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --memory=1024m \
-            auth-service
-          sleep 15
-          docker exec auth npm test
-          docker stop auth && docker rm auth
+          cd auth
+          npm ci
+          cd ../product
+          npm ci
+          cd ../order
+          npm ci
+
+      # --- Test Auth service ---
+      - name: Test Auth service
+        run: |
+          cd auth
+          # giảm concurrency để tiết kiệm RAM
+          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
 
       # --- Test Product service ---
-      - name: Build & Test Product
+      - name: Test Product service
         run: |
-          docker build -t product-service ./product
-          docker run -d --name product \
-            -e MONGODB_PRODUCT_URI="mongodb://localhost:27017/product_db" \
-            -e RABBITMQ_HOST="localhost" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --memory=1024m \
-            product-service
-          sleep 15
-          docker exec product npm test
-          docker stop product && docker rm product
+          cd product
+          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
 
       # --- Test Order service ---
-      - name: Build & Test Order
+      - name: Test Order service
         run: |
-          docker build -t order-service ./order
-          docker run -d --name order \
-            -e MONGODB_ORDER_URI="mongodb://localhost:27017/order_db" \
-            -e RABBITMQ_HOST="localhost" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --memory=1024m \
-            order-service
-          sleep 15
-          docker exec order npm test
-          docker stop order && docker rm order
+          cd order
+          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
