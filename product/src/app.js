@@ -12,6 +12,9 @@ class App {
     this.setMiddlewares();
     this.setRoutes();
     this.setupMessageBroker();
+    this.app.get('/health', (req, res) => {
+      res.status(200).json({ status: 'ok' });
+    });
   }
 
   async connectDB() {
@@ -51,6 +54,7 @@ class App {
     this.server.close();
     console.log("Server stopped");
   }
+  
 }
 
 module.exports = App;
