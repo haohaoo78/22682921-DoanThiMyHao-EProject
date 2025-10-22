@@ -68,10 +68,11 @@ jobs:
       # --- Create test user for Product ---
       - name: Create test user in Auth DB
         run: |
+          cd auth
           node -e "
             const mongoose = require('mongoose');
             const bcrypt = require('bcryptjs');
-            const User = require('./auth/src/models/user');
+            const User = require('./src/models/user');
             (async () => {
               await mongoose.connect('mongodb://localhost:27017/auth_db');
               const password = await bcrypt.hash('Shatou5114*', 10);
@@ -79,10 +80,10 @@ jobs:
               await User.create({ username: 'Haohao78091111', password });
               console.log('✅ Test user created successfully');
               process.exit(0);
-            })();
+            })().catch(err => { console.error(err); process.exit(1); });
           "
 
-      # --- Test Auth service ---
+      # --- Run Auth tests ---
       - name: Run Auth tests
         run: |
           cd auth
@@ -95,7 +96,7 @@ jobs:
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
 
-      # --- Test Product service ---
+      # --- Run Product tests ---
       - name: Run Product tests (Auth alive)
         run: |
           cd product
@@ -110,7 +111,7 @@ jobs:
           TEST_USER: "Haohao78091111"
           TEST_PASS: "Shatou5114*"
 
-      # --- (Optional) Test Order service ---
+      # --- Run Order tests ---
       - name: Run Order tests
         run: |
           cd order
