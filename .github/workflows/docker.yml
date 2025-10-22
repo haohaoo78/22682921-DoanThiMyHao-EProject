@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- Checkout code ---
+      # --- B1. Checkout code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- Create .env files ---
+      # --- B2. Create .env files ---
       - name: Create .env files
         run: |
           mkdir -p auth product order
@@ -28,6 +28,8 @@ jobs:
           echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
 
           # Order
           echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" >> order/.env
@@ -35,69 +37,60 @@ jobs:
           echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
           echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
 
-      # --- Build Docker images ---
+      # --- B3. Build Docker images ---
       - name: Build Docker images
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # --- Create Docker network ---
+      # --- B4. Create Docker network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- Start MongoDB ---
-      - name: Start MongoDB container
+      # --- B5. Start MongoDB ---
+      - name: Start MongoDB
         run: |
           docker run -d --name mongo --network eproject-net mongo:6
           sleep 10
 
-      # --- Run Auth service + tests ---
-      - name: Run Auth service + tests
+      # --- B6. Start Auth service ---
+      - name: Start Auth service
         run: |
           docker run -d --name auth \
             --network eproject-net \
             --env-file ./auth/.env \
-            --memory=1024m --memory-swap=1024m \
             auth-service
-          # Wait until Auth ready
+          # Wait until Auth is ready
           for i in {1..20}; do
             if docker exec auth curl -s http://localhost:4001/health; then break; else sleep 3; fi
           done
-          # Run tests
-          docker exec auth npm test
-          docker stop auth && docker rm auth
+          echo "Auth service is ready"
 
-      # --- Run Product service + tests ---
-      - name: Run Product service + tests
+      # --- B7. Run Auth tests ---
+      - name: Run Auth tests
+        run: |
+          docker exec auth npm test
+
+      # --- B8. Start Product service ---
+      - name: Start Product service
         run: |
           docker run -d --name product \
             --network eproject-net \
             --env-file ./product/.env \
-            --memory=1024m --memory-swap=1024m \
             product-service
-          # Wait until Product ready
+          # Wait until Product is ready
           for i in {1..20}; do
             if docker exec product curl -s http://localhost:4002/health; then break; else sleep 3; fi
           done
+          echo "Product service is ready"
+
+      # --- B9. Run Product tests ---
+      - name: Run Product tests
+        run: |
           docker exec product npm test
-          docker stop product && docker rm product
 
-      # --- Optional: Run Order service + tests (bỏ nếu muốn tiết kiệm RAM) ---
-      # - name: Run Order service + tests
-      #   run: |
-      #     docker run -d --name order \
-      #       --network eproject-net \
-      #       --env-file ./order/.env \
-      #       --memory=1024m --memory-swap=1024m \
-      #       order-service
-      #     for i in {1..20}; do
-      #       if docker exec order curl -s http://localhost:4003/health; then break; else sleep 3; fi
-      #     done
-      #     docker exec order npm test
-      #     docker stop order && docker rm order
-
-      # --- Cleanup ---
+      # --- Cleanup (optional, cuối workflow) ---
       - name: Cleanup containers and network
         if: always()
         run: |
