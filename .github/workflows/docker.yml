@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout code ---
+      # --- B1. Checkout repository ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -49,7 +49,12 @@ jobs:
 
       # --- B5. Start MongoDB ---
       - name: Start MongoDB
-        run: docker run -d --name mongo --network eproject-net mongo:6
+        run: |
+          docker run -d --name mongo --network eproject-net mongo:6
+          # Chờ MongoDB sẵn sàng
+          for i in {1..20}; do
+            if docker exec mongo mongo --eval "db.adminCommand('ping')" &>/dev/null; then break; else sleep 3; fi
+          done
 
       # --- B6. Start RabbitMQ ---
       - name: Start RabbitMQ
@@ -65,11 +70,11 @@ jobs:
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          # Chờ Auth sẵn sàng
+          # Chờ Auth service sẵn sàng
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Tạo user test bằng AuthService.register() để hash password đúng
+          # Tạo user test bằng AuthService.register() và wait MongoDB
           docker exec auth node -e "
             const AuthService = require('./src/services/authService');
             const authService = new AuthService();
@@ -77,10 +82,16 @@ jobs:
             const password = process.env.LOGIN_TEST_PASSWORD;
 
             (async () => {
-              // Xóa user test cũ nếu tồn tại
-              await authService.deleteTestUsers();
-
-              // Tạo user test mới (hash password sẽ tự động ở register)
+              let connected = false;
+              while (!connected) {
+                try {
+                  await authService.deleteTestUsers();
+                  connected = true;
+                } catch (err) {
+                  console.log('MongoDB chưa sẵn sàng, đợi 2s...');
+                  await new Promise(r => setTimeout(r, 2000));
+                }
+              }
               await authService.register({ username, password });
               console.log('Test user created via AuthService.register()');
               process.exit();
@@ -95,7 +106,7 @@ jobs:
             if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
           done
 
-      # --- B9. Run tests ---
+      # --- B9. Run all tests ---
       - name: Run all tests
         run: |
           docker exec auth npm test
