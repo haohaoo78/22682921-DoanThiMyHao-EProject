@@ -70,7 +70,7 @@ jobs:
           # Tạo user test trực tiếp qua Node.js
           docker exec auth node -e "
             const mongoose = require('mongoose');
-            const User = require('./src/models/User');
+            const User = require('./src/models/user');
             mongoose.connect(process.env.MONGODB_AUTH_URI).then(async () => {
               const exists = await User.findOne({ username: process.env.LOGIN_TEST_USER });
               if (!exists) {
