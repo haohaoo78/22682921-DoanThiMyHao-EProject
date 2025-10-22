@@ -7,8 +7,8 @@ const { expect } = chai;
 chai.use(chaiHttp);
 
 describe("User Authentication", () => {
-  // const AUTH_URL = "http://auth:3000"; 
-  const AUTH_URL = "http://localhost:3000"; 
+  const AUTH_URL = "http://auth:3000"; 
+  //const AUTH_URL = "http://localhost:3000"; 
   // container Auth chạy trên Docker
 
   // lấy dữ liệu test từ config hoặc .env
