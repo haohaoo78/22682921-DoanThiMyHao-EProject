@@ -36,37 +36,55 @@ jobs:
           --health-retries=5
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout code
+      # 1️⃣ Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       # 2️⃣ Build Auth service
       - name: Build Auth service
         run: docker build -t auth-service ./auth
 
-      # 3️⃣ Test Auth service
-      - name: Test Auth service
+      # 3️⃣ Run Auth container
+      - name: Run Auth container
         run: |
-          docker run --rm --network host \
+          docker run -d --name auth \
+            --network github_network \
             -e MONGODB_AUTH_URI="${{ secrets.MONGODB_AUTH_URI }}" \
             -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="localhost" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            auth-service npm test
+            auth-service
 
-      # 4️⃣ Build Product service
+      # 4️⃣ Test Auth service
+      - name: Test Auth service
+        run: docker exec auth npm test
+
+      # 5️⃣ Stop Auth container
+      - name: Stop Auth container
+        run: docker stop auth
+
+      # 6️⃣ Build Product service
       - name: Build Product service
         run: docker build -t product-service ./product
 
-      # 5️⃣ Test Product service
-      - name: Test Product service
+      # 7️⃣ Run Product container
+      - name: Run Product container
         run: |
-          docker run --rm --network host \
+          docker run -d --name product \
+            --network github_network \
             -e MONGODB_PRODUCT_URI="${{ secrets.MONGODB_PRODUCT_URI }}" \
-            -e RABBITMQ_HOST="localhost" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            product-service npm test
+            product-service
+
+      # 8️⃣ Test Product service
+      - name: Test Product service
+        run: docker exec product npm test
+
+      # 9️⃣ Stop Product container
+      - name: Stop Product container
+        run: docker stop product
