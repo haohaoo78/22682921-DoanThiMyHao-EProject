@@ -47,37 +47,35 @@ jobs:
       # --- Install dependencies ---
       - name: Install dependencies
         run: |
-          cd auth && npm install
-          cd ../product && npm install
-          cd ../order && npm install
+          cd auth && npm ci
+          cd ../product && npm ci
+          cd ../order && npm ci
 
-      # --- Start all services in background ---
-      - name: Start Auth, Product, and Order services
+      # --- Start microservices in background ---
+      - name: Start all services
         run: |
-          # Start Auth
+          echo "🚀 Starting Auth service..."
           cd auth
           nohup node src/app.js > ../auth.log 2>&1 &
-          echo "✅ Auth started on port 4001"
           cd ..
 
-          # Start Product
+          echo "🚀 Starting Product service..."
           cd product
           nohup node src/app.js > ../product.log 2>&1 &
-          echo "✅ Product started on port 4002"
           cd ..
 
-          # Start Order
+          echo "🚀 Starting Order service..."
           cd order
           nohup node src/app.js > ../order.log 2>&1 &
-          echo "✅ Order started on port 4003"
           cd ..
 
-          # Wait for all services to come up
-          echo "⏳ Waiting for services to start..."
-          sleep 20
-          curl -s http://localhost:4001 || echo "⚠️ Auth not reachable yet"
-          curl -s http://localhost:4002 || echo "⚠️ Product not reachable yet"
-          curl -s http://localhost:4003 || echo "⚠️ Order not reachable yet"
+          echo "⏳ Waiting for all services to start..."
+          sleep 25
+
+          echo "🔍 Checking service health..."
+          curl -s http://localhost:4001 || echo "⚠️ Auth not reachable"
+          curl -s http://localhost:4002 || echo "⚠️ Product not reachable"
+          curl -s http://localhost:4003 || echo "⚠️ Order not reachable"
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
           MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
@@ -106,15 +104,19 @@ jobs:
             })().catch(err => { console.error(err); process.exit(1); });
           "
 
-      # --- Run all tests (Auth, Product, Order) ---
-      - name: Run Tests for All Services
+      # --- Run tests for all services ---
+      - name: Run all tests
         run: |
-          echo "🚀 Running tests..."
-          cd auth && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
-          cd product && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
-          cd order && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
+          echo "🚀 Running Auth tests..."
+          cd auth && npx mocha --timeout 20000 src/test/**/*.test.js --exit && cd ..
 
-          echo "✅ All tests completed"
+          echo "🚀 Running Product tests..."
+          cd product && npx mocha --timeout 20000 src/test/**/*.test.js --exit && cd ..
+
+          echo "🚀 Running Order tests..."
+          cd order && npx mocha --timeout 20000 src/test/**/*.test.js --exit && cd ..
+
+          echo "✅ All tests completed successfully"
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
           MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
