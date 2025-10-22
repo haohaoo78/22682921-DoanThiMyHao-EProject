@@ -20,17 +20,17 @@ jobs:
         run: |
           mkdir -p auth product
 
-          # Auth service (port test 4001)
+          # Auth service
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
           echo "PORT=4001" >> auth/.env
 
-          # Product service (port test 4000)
+          # Product service
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-          echo "AUTH_SERVICE_URL=http://localhost:4001" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
           echo "PORT=4000" >> product/.env
           echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> product/.env
           echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
@@ -61,28 +61,28 @@ jobs:
             rabbitmq:3-management
           sleep 10
 
-      # --- B7. Start Auth service (publish port 3000) ---
+      # --- B7. Start Auth service ---
       - name: Start Auth service
         run: |
-          docker run -d --name auth --network eproject-net -p 3000:3000 --env-file ./auth/.env auth-service
+          docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if curl -s http://localhost:3000/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
 
-      # --- B8. Start Product service (publish port 4000) ---
+      # --- B8. Start Product service ---
       - name: Start Product service
         run: |
-          docker run -d --name product --network eproject-net -p 4000:4000 --env-file ./product/.env product-service
+          docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if curl -s http://localhost:4000/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4000/health; then break; else sleep 3; fi
           done
 
-      # --- B9. Run tests from host runner ---
+      # --- B9. Run tests inside containers ---
       - name: Run Auth tests
-        run: npm --prefix ./auth test
+        run: docker exec auth npm test
 
       - name: Run Product tests
-        run: npm --prefix ./product test
+        run: docker exec product npm test
 
       # --- B10. Cleanup ---
       - name: Cleanup
