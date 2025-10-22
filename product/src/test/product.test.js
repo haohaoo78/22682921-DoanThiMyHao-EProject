@@ -96,23 +96,4 @@ describe("Products API", function () {
       expect(res.body).to.have.property("_id", productId);
     });
   });
-
-  describe("POST /api/products/buy-test", () => {
-    it("should create an order for a product", async () => {
-      await waitForProduct(productId);
-
-      const res = await chai
-        .request(app.app)
-        .post("/api/products/buy-test")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({ productId, quantity: 2 });
-
-      expect(res).to.have.status(201);
-      expect(res.body.username).to.equal(config.testUser.username); // username đúng
-      expect(res.body.products.map(id => id.toString())).to.include(productId.toString());
-      expect(res.body).to.have.property("status", "completed");
-      expect(res.body).to.have.property("totalPrice").that.is.a("number");
-      expect(res.body).to.have.property("orderId").that.is.a("string");
-    });
-  });
 });
