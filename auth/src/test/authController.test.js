@@ -1,43 +1,23 @@
 const chai = require("chai");
 const chaiHttp = require("chai-http");
-const App = require("../app");
-const config = require("../config/index"); // lấy config chung
 require("dotenv").config();
-
-chai.use(chaiHttp);
+const config = require("../config/index"); // dùng config chung
 const { expect } = chai;
 
+chai.use(chaiHttp);
+
 describe("User Authentication", () => {
-  let app;
-  let requester;
-  const TEST_PORT = process.env.TEST_PORT || 4001;
+  const AUTH_URL = "http://auth:3000"; // container Auth chạy trên Docker
 
   // lấy dữ liệu test từ config hoặc .env
   const TEST_USER = process.env.TEST_USER || config.testUser?.username || "testuser";
   const TEST_PASS = process.env.TEST_PASS || config.testUser?.password || "password";
 
-  before(async function () {
-    this.timeout(10000);
-    app = new App();
-    await app.connectDB();
+  // requester trực tiếp tới container Auth
+  let requester = chai.request(AUTH_URL).keepOpen();
 
-    await new Promise((resolve, reject) => {
-      const server = app.app.listen(TEST_PORT, () => {
-        console.log(`Server started on port ${TEST_PORT}`);
-        resolve(server);
-      });
-      server.on("error", reject);
-      app.server = server;
-    });
-    // requester = chai.request(`http://localhost:${TEST_PORT}`).keepOpen(); // dùng localhost khi chạy local
-    requester = chai.request(`http://auth:${TEST_PORT}`).keepOpen();
-  });
-
-  after(async () => {
-    await app.authController.authService.deleteTestUsers();
-    await app.disconnectDB();
+  after(() => {
     requester.close();
-    await app.stop();
   });
 
   describe("POST /register", () => {
