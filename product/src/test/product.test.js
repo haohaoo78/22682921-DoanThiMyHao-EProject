@@ -6,7 +6,6 @@ require("dotenv").config();
 const config = require("../config");
 
 chai.use(chaiHttp);
-
 // Chờ auth service sẵn sàng
 async function waitForAuth(retries = 10, delay = 3000) {
   for (let i = 0; i < retries; i++) {
