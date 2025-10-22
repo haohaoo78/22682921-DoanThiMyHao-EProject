@@ -63,7 +63,7 @@ jobs:
             rabbitmq:3-management
           sleep 10
 
-      # --- B7. Start Auth service (port test 3000) ---
+      # --- B7. Start Auth service (port test 4001) ---
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
@@ -94,12 +94,12 @@ jobs:
             })();
           "
 
-      # --- B8. Start Product service (port test 3001) ---
+      # --- B8. Start Product service (port test 4000) ---
       - name: Start Product service
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://product:3001/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4000/health; then break; else sleep 3; fi
           done
 
       # --- B9. Run tests ---
