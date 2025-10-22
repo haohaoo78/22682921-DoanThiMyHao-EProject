@@ -125,3 +125,5 @@ POST products/api/products/buy/ → Đặt hàng sản phẩm
 ### Order Service - Port 3002
 Tự động nhận dữ liệu đơn hàng được gửi từ Product Service thông qua RabbitMQ và lưu trữ vào MongoDB.
 ![alt text](img_readme/image-8.png)
+
+.
