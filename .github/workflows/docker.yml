@@ -52,7 +52,7 @@ jobs:
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if docker exec auth curl -s http://localhost:4001/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://localhost:3000/health; then break; else sleep 3; fi
           done
 
       # --- B7. Start Product service ---
