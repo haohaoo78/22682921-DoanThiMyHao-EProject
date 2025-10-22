@@ -16,7 +16,7 @@ jobs:
         ports:
           - 27017:27017
         options: >-
-          --health-cmd="mongo --eval 'db.adminCommand(\"ping\")'" 
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'" 
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -26,9 +26,10 @@ jobs:
         ports:
           - 5672:5672
           - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASS }}
         options: >-
-          -e RABBITMQ_DEFAULT_USER=haohaao78
-          -e RABBITMQ_DEFAULT_PASS=Shatou5114
           --health-cmd="rabbitmqctl status"
           --health-interval=10s
           --health-timeout=5s
