@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout repository ---
+      # --- B1. Checkout code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -69,20 +69,22 @@ jobs:
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Tạo user test trực tiếp qua Node.js
+          # Tạo user test bằng AuthService.register() để hash password đúng
           docker exec auth node -e "
-            const mongoose = require('mongoose');
-            const User = require('./src/models/user');
-            mongoose.connect(process.env.MONGODB_AUTH_URI).then(async () => {
-              const exists = await User.findOne({ username: process.env.LOGIN_TEST_USER });
-              if (!exists) {
-                await User.create({ username: process.env.LOGIN_TEST_USER, password: process.env.LOGIN_TEST_PASSWORD });
-                console.log('Test user created');
-              } else {
-                console.log('Test user already exists');
-              }
+            const AuthService = require('./src/services/authService');
+            const authService = new AuthService();
+            const username = process.env.LOGIN_TEST_USER;
+            const password = process.env.LOGIN_TEST_PASSWORD;
+
+            (async () => {
+              // Xóa user test cũ nếu tồn tại
+              await authService.deleteTestUsers();
+
+              // Tạo user test mới (hash password sẽ tự động ở register)
+              await authService.register({ username, password });
+              console.log('Test user created via AuthService.register()');
               process.exit();
-            }).catch(err => { console.error(err); process.exit(1); });
+            })().catch(err => { console.error(err); process.exit(1); });
           "
 
       # --- B8. Start Product service ---
