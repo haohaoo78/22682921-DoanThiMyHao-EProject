@@ -15,25 +15,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files ---
+      # --- B2. Create .env files from GitHub Secrets ---
       - name: Create .env files
         run: |
           mkdir -p auth product
 
-          # Auth service .env
-          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" > auth/.env
+          # Auth
+          echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
-          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
 
-          # Product service .env
-          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" > product/.env
+          # Product
+          echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
-          echo "RABBITMQ_HOST=rabbitmq" >> product/.env
-          echo "RABBITMQ_PORT=5672" >> product/.env
+          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> product/.env
+          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
           echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
           echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
 
@@ -49,12 +47,7 @@ jobs:
 
       # --- B5. Start MongoDB ---
       - name: Start MongoDB
-        run: |
-          docker run -d --name mongo --network eproject-net mongo:6
-          # Wait Mongo ready
-          for i in {1..20}; do
-            if docker exec mongo mongo --eval "db.adminCommand('ping')" &>/dev/null; then break; else sleep 3; fi
-          done
+        run: docker run -d --name mongo --network eproject-net mongo:6
 
       # --- B6. Start RabbitMQ ---
       - name: Start RabbitMQ
@@ -70,33 +63,12 @@ jobs:
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          # Wait Auth ready
+          # Chờ Auth sẵn sàng
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Create test user safely
-          docker exec auth node -e "
-            const AuthService = require('./src/services/authService');
-            const authService = new AuthService();
-            const username = process.env.LOGIN_TEST_USER;
-            const password = process.env.LOGIN_TEST_PASSWORD;
-
-            (async () => {
-              let connected = false;
-              while (!connected) {
-                try {
-                  await authService.deleteTestUsers();
-                  connected = true;
-                } catch (err) {
-                  console.log('MongoDB chưa sẵn sàng, đợi 2s...');
-                  await new Promise(r => setTimeout(r, 2000));
-                }
-              }
-              await authService.register({ username, password });
-              console.log('Test user created via AuthService.register()');
-              process.exit();
-            })().catch(err => { console.error(err); process.exit(1); });
-          "
+          # Tạo user test để Product có thể login
+          docker exec auth node -e "require('./src/setupTestUser').createTestUser(process.env.LOGIN_TEST_USER, process.env.LOGIN_TEST_PASSWORD)"
 
       # --- B8. Start Product service ---
       - name: Start Product service
@@ -106,13 +78,13 @@ jobs:
             if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
           done
 
-      # --- B9. Run all tests ---
+      # --- B9. Run tests ---
       - name: Run all tests
         run: |
           docker exec auth npm test
           docker exec product npm test
 
-      # --- B10. Cleanup ---
+      # --- B10. Cleanup containers and network ---
       - name: Cleanup
         if: always()
         run: |
