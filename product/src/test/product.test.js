@@ -11,7 +11,7 @@ async function waitForAuth(retries = 10, delay = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await chai
-        .request(process.env.AUTH_TEST_URL || "http://localhost:4001")
+        .request(process.env.AUTH_TEST_URL || "http://localhost:3000")
         .post("/login")
         .send({
           username: config.testUser.username,
