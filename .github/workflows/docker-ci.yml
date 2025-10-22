@@ -48,10 +48,10 @@ jobs:
       - name: Run Auth container
         run: |
           docker run -d --name auth \
-            --network github_network \
+            --network host \
             -e MONGODB_AUTH_URI="${{ secrets.MONGODB_AUTH_URI }}" \
             -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_HOST="localhost" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
@@ -73,9 +73,9 @@ jobs:
       - name: Run Product container
         run: |
           docker run -d --name product \
-            --network github_network \
+            --network host \
             -e MONGODB_PRODUCT_URI="${{ secrets.MONGODB_PRODUCT_URI }}" \
-            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_HOST="localhost" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
