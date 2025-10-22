@@ -8,7 +8,7 @@ chai.use(chaiHttp);
 describe("Products API", function () {
   this.timeout(60000);
 
-  const PRODUCT_URL = "http://product:3002"; // container Product chạy trên Docker
+  const PRODUCT_URL = "http://product:3001"; // container Product chạy trên Docker
   const AUTH_URL = "http://auth:3000";      // container Auth chạy trên Docker
 
   let authToken;
