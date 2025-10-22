@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files for test ---
+      # --- B2. Create .env files ---
       - name: Create .env files
         run: |
           mkdir -p auth product
@@ -32,10 +32,6 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
           echo "PORT=4000" >> product/.env
-          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> product/.env
-          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
-          echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
-          echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
 
       # --- B3. Build Docker images ---
       - name: Build Docker images
@@ -51,43 +47,33 @@ jobs:
       - name: Start MongoDB
         run: docker run -d --name mongo --network eproject-net mongo:6
 
-      # --- B6. Start RabbitMQ ---
-      - name: Start RabbitMQ
-        run: |
-          docker run -d --name rabbitmq \
-            --network eproject-net \
-            -e RABBITMQ_DEFAULT_USER=${{ secrets.RABBITMQ_USER }} \
-            -e RABBITMQ_DEFAULT_PASS=${{ secrets.RABBITMQ_PASS }} \
-            rabbitmq:3-management
-          sleep 10
-
-      # --- B7. Start Auth service ---
+      # --- B6. Start Auth service ---
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://localhost:4001/health; then break; else sleep 3; fi
           done
 
-      # --- B8. Start Product service ---
+      # --- B7. Start Product service ---
       - name: Start Product service
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://product:4000/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://localhost:4000/health; then break; else sleep 3; fi
           done
 
-      # --- B9. Run tests inside containers ---
+      # --- B8. Run tests inside containers ---
       - name: Run Auth tests
         run: docker exec auth npm test
 
       - name: Run Product tests
         run: docker exec product npm test
 
-      # --- B10. Cleanup ---
+      # --- B9. Cleanup ---
       - name: Cleanup
         if: always()
         run: |
-          docker stop auth product mongo rabbitmq || true
-          docker rm auth product mongo rabbitmq || true
+          docker stop auth product mongo || true
+          docker rm auth product mongo || true
           docker network rm eproject-net || true
