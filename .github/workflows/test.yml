@@ -25,15 +25,10 @@ jobs:
 
           echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_db" >> product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-          echo "AUTH_SERVICE_URL=http://localhost:4001" >> product/.env
+          echo "AUTH_SERVICE_URL=http://localhost:3000" >> product/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
-
-          echo "MONGODB_ORDER_URI=mongodb://localhost:27017/order_db" >> order/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "AUTH_SERVICE_URL=http://localhost:4001" >> order/.env
-          echo "PRODUCT_SERVICE_URL=http://localhost:4002" >> order/.env
-
+         
       # --- B3. Cài npm dependencies ---
       - name: Install dependencies
         run: |
