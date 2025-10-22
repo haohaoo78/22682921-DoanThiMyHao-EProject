@@ -15,9 +15,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Tạo file .env cho từng service ---
+      # --- B2. Tạo .env cho từng service ---
       - name: Create .env files
         run: |
+          mkdir -p auth product order
+
           echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_db" >> auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
 
@@ -32,26 +34,26 @@ jobs:
           echo "AUTH_SERVICE_URL=http://localhost:4001" >> order/.env
           echo "PRODUCT_SERVICE_URL=http://localhost:4002" >> order/.env
 
-      # --- B3. Cài dependencies ---
+      # --- B3. Cài npm dependencies ---
       - name: Install dependencies
         run: |
-          cd auth && npm ci && cd ..
-          cd product && npm ci && cd ..
-          cd order && npm ci && cd ..
+          if [ -d "auth" ]; then cd auth && npm install && cd ..; fi
+          if [ -d "product" ]; then cd product && npm install && cd ..; fi
+          if [ -d "order" ]; then cd order && npm install && cd ..; fi
 
-      # --- B4. Start MongoDB service ---
+      # --- B4. Start MongoDB ---
       - name: Start MongoDB
         run: |
           docker run -d -p 27017:27017 --name mongo mongo:6
           sleep 10
 
-      # --- B5. Test Auth ---
+      # --- B5. Run tests for Auth ---
       - name: Run Auth tests
         run: |
           cd auth
           npm test
 
-      # --- B6. Test Product (cần Auth chạy trước) ---
+      # --- B6. Run tests for Product ---
       - name: Run Product tests
         run: |
           cd auth
@@ -60,7 +62,7 @@ jobs:
           cd ../product
           npm test
 
-      # --- B7. Test Order (cần Auth + Product chạy trước) ---
+      # --- B7. Run tests for Order ---
       - name: Run Order tests
         run: |
           cd auth
