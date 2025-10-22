@@ -47,7 +47,7 @@ jobs:
       - name: Build Order service
         run: docker build -t order-service ./order
 
-      # Run containers (kết nối service bằng hostname)
+      # Run Auth container
       - name: Run Auth container
         run: |
           docker run -d --name auth \
@@ -59,6 +59,13 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             auth-service
 
+      # Test Auth service then stop
+      - name: Test Auth service
+        run: |
+          docker exec auth npm test
+          docker stop auth
+
+      # Run Product container
       - name: Run Product container
         run: |
           docker run -d --name product \
@@ -69,6 +76,13 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             product-service
 
+      # Test Product service then stop
+      - name: Test Product service
+        run: |
+          docker exec product npm test
+          docker stop product
+
+      # Run Order container
       - name: Run Order container
         run: |
           docker run -d --name order \
@@ -79,20 +93,8 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             order-service
 
-      - name: Wait for services
-        run: sleep 15
-
-      # Test all services
-      - name: Test Auth service
-        run: docker exec auth npm test
-      - name: Test Product service
-        run: docker exec product npm test
+      # Test Order service then stop
       - name: Test Order service
-        run: docker exec order npm test
-
-      # Stop all containers
-      - name: Stop all containers
         run: |
-          docker stop auth
-          docker stop product
+          docker exec order npm test
           docker stop order
