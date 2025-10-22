@@ -67,12 +67,7 @@ jobs:
           done
           echo "Auth service is ready"
 
-      # --- B7. Run Auth tests ---
-      - name: Run Auth tests
-        run: |
-          docker exec auth npm test
-
-      # --- B8. Start Product service ---
+      # --- B7. Start Product service ---
       - name: Start Product service
         run: |
           docker run -d --name product \
@@ -85,12 +80,13 @@ jobs:
           done
           echo "Product service is ready"
 
-      # --- B9. Run Product tests ---
-      - name: Run Product tests
+      # --- B8. Run tests for Auth and Product ---
+      - name: Run tests
         run: |
+          docker exec auth npm test
           docker exec product npm test
 
-      # --- Cleanup containers and network ---
+      # --- B9. Cleanup containers and network ---
       - name: Cleanup
         if: always()
         run: |
