@@ -1,0 +1,99 @@
+name: CI/CD EProject Microservices
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      # --- B1. Lấy code ---
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # --- B2. Tạo .env cho từng service ---
+      - name: Create .env files
+        run: |
+          mkdir -p auth product order
+
+          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" >> auth/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+
+          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
+
+          echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" >> order/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
+          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
+
+      # --- B3. Build Docker images ---
+      - name: Build service images
+        run: |
+          docker build -t auth-service ./auth
+          docker build -t product-service ./product
+          docker build -t order-service ./order
+
+      # --- B4. Tạo Docker network ---
+      - name: Create network
+        run: docker network create eproject-net
+
+      # --- B5. Chạy MongoDB ---
+      - name: Run MongoDB container
+        run: docker run -d --name mongo --network eproject-net mongo:6
+
+      # --- B6. Test Auth service ---
+      - name: Run Auth tests
+        run: |
+          docker run --rm \
+            --network eproject-net \
+            --env-file ./auth/.env \
+            -v ${{ github.workspace }}/auth:/app \
+            -w /app \
+            node:18 bash -c "npm install && npm test"
+
+      # --- B7. Test Product service ---
+      - name: Run Product tests
+        run: |
+          # Start Auth trước
+          docker run -d --name auth \
+            --network eproject-net \
+            --env-file ./auth/.env \
+            -p 4001:4001 \
+            auth-service
+
+          sleep 10
+
+          docker run --rm \
+            --network eproject-net \
+            --env-file ./product/.env \
+            -v ${{ github.workspace }}/product:/app \
+            -w /app \
+            node:18 bash -c "npm install && npm test"
+
+      # --- B8. Dọn dẹp ---
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker ps -a
+          docker stop $(docker ps -aq) || true
+          docker rm $(docker ps -aq) || true
+          docker network rm eproject-net || true
