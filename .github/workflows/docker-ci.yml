@@ -46,7 +46,7 @@ jobs:
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # Run & Test Auth service
+      # --- Run & Test Auth service ---
       - name: Run & Test Auth
         run: |
           docker run -d --name auth \
@@ -58,11 +58,12 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             --memory=1024m --memory-swap=1024m \
             auth-service
-          sleep 20
+          sleep 30
           docker exec auth npm test
           docker stop auth
+          docker rm auth
 
-      # Run & Test Product service
+      # --- Run & Test Product service ---
       - name: Run & Test Product
         run: |
           docker run -d --name product \
@@ -73,11 +74,12 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             --memory=1024m --memory-swap=1024m \
             product-service
-          sleep 20
+          sleep 30
           docker exec product npm test
           docker stop product
+          docker rm product
 
-      # Run & Test Order service
+      # --- Run & Test Order service ---
       - name: Run & Test Order
         run: |
           docker run -d --name order \
@@ -88,6 +90,7 @@ jobs:
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
             --memory=1024m --memory-swap=1024m \
             order-service
-          sleep 20
+          sleep 30
           docker exec order npm test
           docker stop order
+          docker rm order
