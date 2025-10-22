@@ -7,133 +7,74 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  build-test:
     runs-on: ubuntu-latest
 
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'" 
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASS }}
+        options: >-
+          --health-cmd="rabbitmqctl status"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
-      # --- B1. Checkout code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files for each service ---
-      - name: Create .env files
-        run: |
-          mkdir -p auth product order
-
-          # Auth
-          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" >> auth/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-
-          # Product
-          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
-          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
-          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
-
-          # Order
-          echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" >> order/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
-          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
-
-      # --- B3. Build Docker images ---
-      - name: Build Docker images
+      # Build all services
+      - name: Build services
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # --- B4. Create Docker network ---
-      - name: Create Docker network
-        run: docker network create eproject-net || true
-
-      # --- B5. Start MongoDB + RabbitMQ ---
-      - name: Start MongoDB and RabbitMQ
-        run: |
-          docker run -d --name mongo --network eproject-net mongo:6
-          docker run -d --name rabbitmq --network eproject-net \
-            -e RABBITMQ_DEFAULT_USER=haohaao78 \
-            -e RABBITMQ_DEFAULT_PASS=Shatou5114 \
-            rabbitmq:3-management
-          sleep 20
-
-      # --- B6. Start Auth service ---
-      - name: Start Auth container
+      # --- Run & Test Auth service ---
+      - name: Run & Test Auth
         run: |
           docker run -d --name auth \
-            --network eproject-net \
-            --env-file ./auth/.env \
-            -p 4001:4001 \
+            -e MONGODB_AUTH_URI="mongodb://mongo:27017/auth_db" \
+            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_PORT="5672" \
+            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
+            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --memory=1024m --memory-swap=1024m \
             auth-service
+          sleep 30
+          docker exec auth npm test
+          docker stop auth
+          docker rm auth
 
-      # --- B7. Wait for Auth ready ---
-      - name: Wait for Auth service
-        run: |
-          for i in {1..30}; do
-            if docker exec auth curl -s http://localhost:4001/health; then
-              echo "Auth ready"; break
-            else
-              echo "Waiting for Auth... ($i/30)"
-              sleep 5
-            fi
-          done
-
-      # --- B8. Run Auth tests ---
-      - name: Run Auth tests
-        run: |
-          docker run --rm \
-            --network eproject-net \
-            --env-file ./auth/.env \
-            -v ${{ github.workspace }}/auth:/app \
-            -w /app \
-            node:18 bash -c "npm install && npm test"
-
-      # --- B9. Start Product service ---
-      - name: Start Product container
+      # --- Run & Test Product service ---
+      - name: Run & Test Product
         run: |
           docker run -d --name product \
-            --network eproject-net \
-            --env-file ./product/.env \
-            -p 4002:4002 \
+            -e MONGODB_PRODUCT_URI="mongodb://mongo:27017/product_db" \
+            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_PORT="5672" \
+            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
+            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --memory=1024m --memory-swap=1024m \
             product-service
-          sleep 10
-
-      # --- B10. Run Product tests ---
-      - name: Run Product tests
-        run: |
-          docker run --rm \
-            --network eproject-net \
-            --env-file ./product/.env \
-            -v ${{ github.workspace }}/product:/app \
-            -w /app \
-            node:18 bash -c "npm install && npm test"
-
-      # --- B11. Start Order service ---
-      - name: Start Order container
-        run: |
-          docker run -d --name order \
-            --network eproject-net \
-            --env-file ./order/.env \
-            -p 4003:4003 \
-            order-service
-          sleep 10
-
-      # --- B12. Run Order tests ---
-      - name: Run Order tests
-        run: |
-          docker run --rm \
-            --network eproject-net \
-            --env-file ./order/.env \
-            -v ${{ github.workspace }}/order:/app \
-            -w /app \
-            node:18 bash -c "npm install && npm test"
-
-      # --- B13. Cleanup containers and network ---
-      - name: Cleanup
-        if: always()
-        run: |
-          docker ps -a
-          docker stop $(docker ps -aq) || true
-          docker rm $(docker ps -aq) || true
-          docker network rm eproject-net || true
+          sleep 30
+          docker exec product npm test
+          docker stop product
+          docker rm product
