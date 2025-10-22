@@ -37,7 +37,7 @@ jobs:
           echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
           echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
 
-      # --- B3. Build service images ---
+      # --- B3. Build Docker images ---
       - name: Build Docker images
         run: |
           docker build -t auth-service ./auth
@@ -48,11 +48,15 @@ jobs:
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- B5. Start MongoDB ---
-      - name: Start MongoDB container
+      # --- B5. Start MongoDB + RabbitMQ ---
+      - name: Start MongoDB and RabbitMQ
         run: |
           docker run -d --name mongo --network eproject-net mongo:6
-          sleep 15
+          docker run -d --name rabbitmq --network eproject-net \
+            -e RABBITMQ_DEFAULT_USER=haohaao78 \
+            -e RABBITMQ_DEFAULT_PASS=Shatou5114 \
+            rabbitmq:3-management
+          sleep 20
 
       # --- B6. Start Auth service ---
       - name: Start Auth container
@@ -60,17 +64,18 @@ jobs:
           docker run -d --name auth \
             --network eproject-net \
             --env-file ./auth/.env \
+            -p 4001:4001 \
             auth-service
 
-      # --- B7. Wait for Auth service ready ---
-      - name: Wait for Auth to be ready
+      # --- B7. Wait for Auth ready ---
+      - name: Wait for Auth service
         run: |
-          for i in {1..20}; do
+          for i in {1..30}; do
             if docker exec auth curl -s http://localhost:4001/health; then
               echo "Auth ready"; break
             else
-              echo "Waiting for Auth... ($i/20)"
-              sleep 3
+              echo "Waiting for Auth... ($i/30)"
+              sleep 5
             fi
           done
 
@@ -84,7 +89,17 @@ jobs:
             -w /app \
             node:18 bash -c "npm install && npm test"
 
-      # --- B9. Run Product tests ---
+      # --- B9. Start Product service ---
+      - name: Start Product container
+        run: |
+          docker run -d --name product \
+            --network eproject-net \
+            --env-file ./product/.env \
+            -p 4002:4002 \
+            product-service
+          sleep 10
+
+      # --- B10. Run Product tests ---
       - name: Run Product tests
         run: |
           docker run --rm \
@@ -94,8 +109,28 @@ jobs:
             -w /app \
             node:18 bash -c "npm install && npm test"
 
-      # --- B10. Cleanup ---
-      - name: Cleanup containers and network
+      # --- B11. Start Order service ---
+      - name: Start Order container
+        run: |
+          docker run -d --name order \
+            --network eproject-net \
+            --env-file ./order/.env \
+            -p 4003:4003 \
+            order-service
+          sleep 10
+
+      # --- B12. Run Order tests ---
+      - name: Run Order tests
+        run: |
+          docker run --rm \
+            --network eproject-net \
+            --env-file ./order/.env \
+            -v ${{ github.workspace }}/order:/app \
+            -w /app \
+            node:18 bash -c "npm install && npm test"
+
+      # --- B13. Cleanup containers and network ---
+      - name: Cleanup
         if: always()
         run: |
           docker ps -a
