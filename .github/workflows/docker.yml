@@ -64,7 +64,7 @@ jobs:
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://auth:4001; then break; else sleep 3; fi
           done
           echo "Auth service is ready"
 
@@ -73,7 +73,7 @@ jobs:
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4002; then break; else sleep 3; fi
           done
           echo "Product service is ready"
 
