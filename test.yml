@@ -11,75 +11,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout code ---
+      # --- B1. Lấy code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files ---
+      # --- B2. Tạo .env cho từng service ---
       - name: Create .env files
         run: |
           mkdir -p auth product order
 
-          # Auth
-          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" >> auth/.env
+          echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_db" >> auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
 
-          # Product
-          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
+          echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_db" >> product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "AUTH_SERVICE_URL=http://localhost:4001" >> product/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
 
-          # Order
-          echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" >> order/.env
+          echo "MONGODB_ORDER_URI=mongodb://localhost:27017/order_db" >> order/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
-          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
+          echo "AUTH_SERVICE_URL=http://localhost:4001" >> order/.env
+          echo "PRODUCT_SERVICE_URL=http://localhost:4002" >> order/.env
 
-      # --- B3. Build Docker images ---
-      - name: Build Docker images
+      # --- B3. Cài npm dependencies ---
+      - name: Install dependencies
         run: |
-          docker build -t auth-service ./auth
-          docker build -t product-service ./product
-          docker build -t order-service ./order
+          if [ -d "auth" ]; then cd auth && npm install && cd ..; fi
+          if [ -d "product" ]; then cd product && npm install && cd ..; fi
+          if [ -d "order" ]; then cd order && npm install && cd ..; fi
 
-      # --- B4. Create Docker network ---
-      - name: Create Docker network
-        run: docker network create eproject-net || true
-
-      # --- B5. Start MongoDB ---
+      # --- B4. Start MongoDB ---
       - name: Start MongoDB
-        run: docker run -d --name mongo --network eproject-net mongo:6
-
-      # --- B6. Start Auth service ---
-      - name: Start Auth service
         run: |
-          docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          for i in {1..20}; do
-            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 1; fi
-          done
-          echo "Auth service is ready"
+          docker run -d -p 27017:27017 --name mongo mongo:6
+          sleep 10
 
-      # --- B7. Start Product service ---
-      - name: Start Product service
+      # --- B5. Run tests for Auth ---
+      - name: Run Auth tests
         run: |
-          docker run -d --name product --network eproject-net --env-file ./product/.env product-service
-          for i in {1..20}; do
-            if docker exec product curl -s http://product:4002/health; then break; else sleep 1; fi
-          done
-          echo "Product service is ready"
+          cd auth
+          npm test
 
-      # --- B8. Run all tests ---
-      - name: Run all tests
+      # --- B6. Run tests for Product ---
+      - name: Run Product tests
         run: |
-          docker exec auth npm test
-          docker exec product npm test
+          cd auth
+          npm start &
+          sleep 10
+          cd ../product
+          npm test
 
-      # --- B9. Cleanup containers and network ---
-      - name: Cleanup containers and network
-        if: always()
-        run: |
-          docker stop auth product mongo || true
-          docker rm auth product mongo || true
-          docker network rm eproject-net || true

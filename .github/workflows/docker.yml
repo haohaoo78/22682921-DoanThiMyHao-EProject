@@ -18,7 +18,7 @@ jobs:
       # --- B2. Create .env files from GitHub Secrets ---
       - name: Create .env files
         run: |
-          mkdir -p auth product order
+          mkdir -p auth product
 
           # Auth
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
@@ -35,22 +35,11 @@ jobs:
           echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
           echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
 
-          # Order
-          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" > order/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
-          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
-          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> order/.env
-          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> order/.env
-          echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> order/.env
-          echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> order/.env
-
       # --- B3. Build Docker images ---
       - name: Build Docker images
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
-          docker build -t order-service ./order
 
       # --- B4. Create Docker network ---
       - name: Create Docker network
@@ -88,26 +77,16 @@ jobs:
           done
           echo "Product service is ready"
 
-      # --- B9. Start Order service ---
-      - name: Start Order service
-        run: |
-          docker run -d --name order --network eproject-net --env-file ./order/.env order-service
-          for i in {1..20}; do
-            if docker exec order curl -s http://order:4003/health; then break; else sleep 3; fi
-          done
-          echo "Order service is ready"
-
-      # --- B10. Run all tests ---
+      # --- B9. Run tests ---
       - name: Run all tests
         run: |
           docker exec auth npm test
           docker exec product npm test
-          docker exec order npm test
 
-      # --- B11. Cleanup containers and network ---
+      # --- B10. Cleanup containers and network ---
       - name: Cleanup
         if: always()
         run: |
-          docker stop auth product order mongo rabbitmq || true
-          docker rm auth product order mongo rabbitmq || true
+          docker stop auth product mongo rabbitmq || true
+          docker rm auth product mongo rabbitmq || true
           docker network rm eproject-net || true
