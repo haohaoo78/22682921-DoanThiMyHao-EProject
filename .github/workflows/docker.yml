@@ -67,8 +67,21 @@ jobs:
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Tạo user test để Product có thể login
-          docker exec auth node -e "require('./src/setupTestUser').createTestUser(process.env.LOGIN_TEST_USER, process.env.LOGIN_TEST_PASSWORD)"
+          # Tạo user test trực tiếp qua Node.js
+          docker exec auth node -e "
+            const mongoose = require('mongoose');
+            const User = require('./src/models/User');
+            mongoose.connect(process.env.MONGODB_AUTH_URI).then(async () => {
+              const exists = await User.findOne({ username: process.env.LOGIN_TEST_USER });
+              if (!exists) {
+                await User.create({ username: process.env.LOGIN_TEST_USER, password: process.env.LOGIN_TEST_PASSWORD });
+                console.log('Test user created');
+              } else {
+                console.log('Test user already exists');
+              }
+              process.exit();
+            }).catch(err => { console.error(err); process.exit(1); });
+          "
 
       # --- B8. Start Product service ---
       - name: Start Product service
