@@ -15,18 +15,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files from GitHub Secrets ---
+      # --- B2. Create .env files for test ---
       - name: Create .env files
         run: |
           mkdir -p auth product
 
-          # Auth service
+          # Auth service (test port 4001)
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
+          echo "PORT=4001" >> auth/.env
 
-          # Product service
+          # Product service (test port 4000)
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
@@ -36,6 +37,7 @@ jobs:
           echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
           echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
           echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
+          echo "PORT=4000" >> product/.env
 
       # --- B3. Build Docker images ---
       - name: Build Docker images
@@ -61,7 +63,7 @@ jobs:
             rabbitmq:3-management
           sleep 10
 
-      # --- B7. Start Auth service ---
+      # --- B7. Start Auth service (port test 4001) ---
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
@@ -71,26 +73,19 @@ jobs:
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
 
-          # Tạo test user với bcrypt hash
+          # Tạo test user
           docker exec auth node -e "
             const mongoose = require('mongoose');
             const bcrypt = require('bcryptjs');
             const User = require('./src/models/user');
-
             (async () => {
               try {
                 await mongoose.connect(process.env.MONGODB_AUTH_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-
-                // Xóa user cũ nếu tồn tại
                 await User.deleteOne({ username: process.env.LOGIN_TEST_USER });
-
-                // Hash password giống register(user)
                 const salt = await bcrypt.genSalt(10);
                 const hashed = await bcrypt.hash(process.env.LOGIN_TEST_PASSWORD, salt);
-
-                // Tạo user mới
                 await User.create({ username: process.env.LOGIN_TEST_USER, password: hashed });
-                console.log('Test user created with hashed password');
+                console.log('Test user created');
                 process.exit();
               } catch (err) {
                 console.error(err);
@@ -99,12 +94,12 @@ jobs:
             })();
           "
 
-      # --- B8. Start Product service ---
+      # --- B8. Start Product service (port test 4000) ---
       - name: Start Product service
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4000/health; then break; else sleep 3; fi
           done
 
       # --- B9. Run tests ---
@@ -113,7 +108,7 @@ jobs:
           docker exec auth npm test
           docker exec product npm test
 
-      # --- B10. Cleanup containers and network ---
+      # --- B10. Cleanup ---
       - name: Cleanup
         if: always()
         run: |

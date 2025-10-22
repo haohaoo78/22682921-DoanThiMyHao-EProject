@@ -21,7 +21,5 @@ module.exports = {
     username: process.env.LOGIN_TEST_USER || "Haohao78091111",
     password: process.env.LOGIN_TEST_PASSWORD || "Shatou5114*",
   },
-  // Auth service URL
-  authServiceUrl: process.env.AUTH_SERVICE_URL || "http://auth:4001",
 };
 
