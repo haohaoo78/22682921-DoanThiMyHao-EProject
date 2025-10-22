@@ -11,49 +11,68 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Lấy code ---
+      # --- B1. Checkout repository ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Tạo .env cho từng service ---
+      # --- B2. Set up Node.js ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # --- B3. Create .env files ---
       - name: Create .env files
         run: |
-          mkdir -p auth product order
+          mkdir -p auth product
 
-          echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_db" >> auth/.env
+          # Auth service
+          echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_db" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
+          echo "PORT=3000" >> auth/.env
 
-          echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_db" >> product/.env
+          # Product service
+          echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_db" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://localhost:3000" >> product/.env
-          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
-          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
-         
-      # --- B3. Cài npm dependencies ---
+          echo "PORT=4000" >> product/.env
+
+      # --- B4. Install dependencies ---
       - name: Install dependencies
         run: |
-          if [ -d "auth" ]; then cd auth && npm install && cd ..; fi
-          if [ -d "product" ]; then cd product && npm install && cd ..; fi
-          if [ -d "order" ]; then cd order && npm install && cd ..; fi
+          cd auth && npm install && cd ..
+          cd product && npm install && cd ..
 
-      # --- B4. Start MongoDB ---
+      # --- B5. Start MongoDB using Docker ---
       - name: Start MongoDB
         run: |
           docker run -d -p 27017:27017 --name mongo mongo:6
           sleep 10
 
-      # --- B5. Run tests for Auth ---
+      # --- B6. Run Auth tests ---
       - name: Run Auth tests
         run: |
           cd auth
           npm test
 
-      # --- B6. Run tests for Product ---
-      - name: Run Product tests
+      # --- B7. Start Auth server for Product tests ---
+      - name: Start Auth server
         run: |
           cd auth
           npm start &
           sleep 10
-          cd ../product
+
+      # --- B8. Run Product tests ---
+      - name: Run Product tests
+        run: |
+          cd product
           npm test
 
+      # --- B9. Cleanup MongoDB ---
+      - name: Cleanup MongoDB
+        if: always()
+        run: |
+          docker stop mongo || true
+          docker rm mongo || true
