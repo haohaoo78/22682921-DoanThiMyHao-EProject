@@ -7,7 +7,7 @@ WORKDIR /app
 # Copy package.json và package-lock.json để cài dependencies
 COPY package*.json ./
 
-# Cài tất cả dependencies từ package.json (dotenv, express,…)
+# Cài tất cả dependencies và devDependencies
 RUN npm install
 
 # Cài amqplib phiên bản mới nhất

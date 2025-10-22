@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const config = require("./config");
+const config = require("../src/config/index");
 const authMiddleware = require("./middlewares/authMiddleware");
 const AuthController = require("./controllers/authController");
 
@@ -37,8 +37,12 @@ class App {
     this.app.get("/dashboard", authMiddleware, (req, res) => res.json({ message: "Welcome to dashboard" }));
   }
 
-  start() {
-    this.server = this.app.listen(3000, () => console.log("Server started on port 3000")); 
+start() { 
+    // Dùng cổng từ config
+    const port = config.port;
+    this.server = this.app.listen(port, () => {
+      console.log(`Server started on port ${port}`);
+    });
   }
 
   async stop() { 
