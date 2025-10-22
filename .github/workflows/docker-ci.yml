@@ -51,22 +51,42 @@ jobs:
           cd ../product && npm install
           cd ../order && npm install
 
+      # --- Start Auth service in background ---
+      - name: Start Auth service (background)
+        run: |
+          cd auth
+          node src/app.js &
+          sleep 10
+        env:
+          MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          RABBITMQ_HOST: "localhost"
+          RABBITMQ_PORT: "5672"
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+
+      # --- Create test user for Product ---
+      - name: Create test user in Auth DB
+        run: |
+          node -e "
+            const mongoose = require('mongoose');
+            const bcrypt = require('bcryptjs');
+            const User = require('./auth/src/models/user');
+            (async () => {
+              await mongoose.connect('mongodb://localhost:27017/auth_db');
+              const password = await bcrypt.hash('Shatou5114*', 10);
+              await User.deleteMany({ username: 'Haohao78091111' });
+              await User.create({ username: 'Haohao78091111', password });
+              console.log('✅ Test user created successfully');
+              process.exit(0);
+            })();
+          "
+
       # --- Test Auth service ---
-      - name: Test Auth service (Create test user)
+      - name: Run Auth tests
         run: |
           cd auth
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
-
-          # ✅ Tạo user test để dùng ở Product
-          node -e "
-            const mongoose = require('mongoose');
-            const User = require('./src/models/user');
-            mongoose.connect('mongodb://localhost:27017/auth_db').then(async () => {
-              await User.create({ username: 'testuser', email: 'test@example.com', password: 'hashedpassword' });
-              console.log('✅ Test user created');
-              process.exit(0);
-            });
-          "
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -76,7 +96,7 @@ jobs:
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
 
       # --- Test Product service ---
-      - name: Test Product service
+      - name: Run Product tests (Auth alive)
         run: |
           cd product
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
@@ -87,3 +107,19 @@ jobs:
           RABBITMQ_PORT: "5672"
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          TEST_USER: "Haohao78091111"
+          TEST_PASS: "Shatou5114*"
+
+      # --- (Optional) Test Order service ---
+      - name: Run Order tests
+        run: |
+          cd order
+          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+        env:
+          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
+          RABBITMQ_HOST: "localhost"
+          RABBITMQ_PORT: "5672"
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          AUTH_SERVICE_URL: "http://localhost:4001"
+          PRODUCT_SERVICE_URL: "http://localhost:4002"
