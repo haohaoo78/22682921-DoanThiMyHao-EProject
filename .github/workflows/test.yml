@@ -5,15 +5,26 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
     - name: Create .env files
       run: |
-        echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> auth/.env
+        echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" >> auth/.env
         echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-        echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> product/.env
+        echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
         echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
         echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
         echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
@@ -27,15 +38,15 @@ jobs:
     - name: Run Auth tests
       run: |
         cd auth
+        sleep 15
         npm test
 
     - name: Run Product tests
       run: |
         cd product
-        # start server in background
         npm start &
         SERVER_PID=$!
-        sleep 5  # đợi server ready
+        sleep 15
         npm test
         kill $SERVER_PID
 
@@ -44,6 +55,6 @@ jobs:
         cd order
         npm start &
         SERVER_PID=$!
-        sleep 5
+        sleep 15
         npm test
         kill $SERVER_PID
