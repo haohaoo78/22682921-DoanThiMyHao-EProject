@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout code ---
+      # --- B1. Checkout repository ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -71,10 +71,10 @@ jobs:
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
 
-          # Tạo test user với hashed password
+          # Tạo test user với bcrypt hash
           docker exec auth node -e "
             const mongoose = require('mongoose');
-            const bcrypt = require('bcrypt');
+            const bcrypt = require("bcryptjs"); 
             const User = require('./src/models/user');
 
             (async () => {
