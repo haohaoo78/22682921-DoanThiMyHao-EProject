@@ -11,29 +11,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout repository ---
+      # --- B1. Checkout code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files from GitHub Secrets ---
+      # --- B2. Create .env files ---
       - name: Create .env files
         run: |
           mkdir -p auth product
 
           # Auth service .env
-          echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
+          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
 
           # Product service .env
-          echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
+          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
-          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> product/.env
-          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
+          echo "RABBITMQ_HOST=rabbitmq" >> product/.env
+          echo "RABBITMQ_PORT=5672" >> product/.env
           echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
           echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
 
@@ -51,7 +51,7 @@ jobs:
       - name: Start MongoDB
         run: |
           docker run -d --name mongo --network eproject-net mongo:6
-          # Chờ MongoDB sẵn sàng
+          # Wait Mongo ready
           for i in {1..20}; do
             if docker exec mongo mongo --eval "db.adminCommand('ping')" &>/dev/null; then break; else sleep 3; fi
           done
@@ -70,11 +70,11 @@ jobs:
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          # Chờ Auth service sẵn sàng
+          # Wait Auth ready
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Tạo user test bằng AuthService.register() và wait MongoDB
+          # Create test user safely
           docker exec auth node -e "
             const AuthService = require('./src/services/authService');
             const authService = new AuthService();
@@ -112,7 +112,7 @@ jobs:
           docker exec auth npm test
           docker exec product npm test
 
-      # --- B10. Cleanup containers and network ---
+      # --- B10. Cleanup ---
       - name: Cleanup
         if: always()
         run: |
