@@ -1,4 +1,5 @@
 const amqp = require("amqplib");
+const rabbitMQConfig = require("../config").rabbitMQ;
 
 class MessageBroker {
   constructor() {
