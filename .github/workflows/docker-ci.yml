@@ -44,20 +44,26 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
+      # --- Install dependencies ---
+      - name: Install Auth dependencies
         run: |
           cd auth
-          npm ci
-          cd ../product
-          npm ci
-          cd ../order
-          npm ci
+          npm install
+
+      - name: Install Product dependencies
+        run: |
+          cd product
+          npm install
+
+      - name: Install Order dependencies
+        run: |
+          cd order
+          npm install
 
       # --- Test Auth service ---
       - name: Test Auth service
         run: |
           cd auth
-          # giảm concurrency để tiết kiệm RAM
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
 
       # --- Test Product service ---
