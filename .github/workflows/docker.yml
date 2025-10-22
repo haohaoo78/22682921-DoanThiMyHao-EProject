@@ -20,11 +20,13 @@ jobs:
         run: |
           mkdir -p auth product
 
-          # Auth
+          # Auth service
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
 
-          # Product
+          # Product service
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
@@ -63,12 +65,39 @@ jobs:
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          # Chờ Auth sẵn sàng
+
+          # Chờ Auth service sẵn sàng
           for i in {1..20}; do
             if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          # Tạo user test để Product có thể login
-          docker exec auth node -e "require('./src/setupTestUser').createTestUser(process.env.LOGIN_TEST_USER, process.env.LOGIN_TEST_PASSWORD)"
+
+          # Tạo test user với hashed password
+          docker exec auth node -e "
+            const mongoose = require('mongoose');
+            const bcrypt = require('bcrypt');
+            const User = require('./src/models/user');
+
+            (async () => {
+              try {
+                await mongoose.connect(process.env.MONGODB_AUTH_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+                // Xóa user cũ nếu tồn tại
+                await User.deleteOne({ username: process.env.LOGIN_TEST_USER });
+
+                // Hash password giống register(user)
+                const salt = await bcrypt.genSalt(10);
+                const hashed = await bcrypt.hash(process.env.LOGIN_TEST_PASSWORD, salt);
+
+                // Tạo user mới
+                await User.create({ username: process.env.LOGIN_TEST_USER, password: hashed });
+                console.log('Test user created with hashed password');
+                process.exit();
+              } catch (err) {
+                console.error(err);
+                process.exit(1);
+              }
+            })();
+          "
 
       # --- B8. Start Product service ---
       - name: Start Product service
