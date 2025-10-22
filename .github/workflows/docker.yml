@@ -46,11 +46,13 @@ jobs:
 
       # --- B4. Create Docker network ---
       - name: Create Docker network
-        run: docker network create eproject-net
+        run: docker network create eproject-net || true
 
       # --- B5. Start MongoDB ---
       - name: Start MongoDB container
-        run: docker run -d --name mongo --network eproject-net mongo:6
+        run: |
+          docker run -d --name mongo --network eproject-net mongo:6
+          sleep 15
 
       # --- B6. Start Auth service ---
       - name: Start Auth container
@@ -58,17 +60,16 @@ jobs:
           docker run -d --name auth \
             --network eproject-net \
             --env-file ./auth/.env \
-            -p 4001:4001 \
             auth-service
 
       # --- B7. Wait for Auth service ready ---
       - name: Wait for Auth to be ready
         run: |
-          for i in {1..10}; do
-            if curl -s http://localhost:4001/health; then
+          for i in {1..20}; do
+            if docker exec auth curl -s http://localhost:4001/health; then
               echo "Auth ready"; break
             else
-              echo "Waiting for Auth... ($i/10)"
+              echo "Waiting for Auth... ($i/20)"
               sleep 3
             fi
           done
