@@ -29,8 +29,8 @@ describe("User Authentication", () => {
       server.on("error", reject);
       app.server = server;
     });
-    requester = chai.request(`http://localhost:${TEST_PORT}`).keepOpen(); // dùng localhost khi chạy local
-    // requester = chai.request(`http://auth:${TEST_PORT}`).keepOpen();
+    // requester = chai.request(`http://localhost:${TEST_PORT}`).keepOpen(); // dùng localhost khi chạy local
+    requester = chai.request(`http://auth:${TEST_PORT}`).keepOpen();
   });
 
   after(async () => {
