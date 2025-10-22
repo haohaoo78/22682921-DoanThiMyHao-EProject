@@ -39,20 +39,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 1️⃣ Build all services
+      # Build all services
       - name: Build services
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # 2️⃣ Run & Test Auth service
+      # Run & Test Auth service
       - name: Run & Test Auth
         run: |
           docker run -d --name auth \
-            -e MONGODB_AUTH_URI="mongodb://host.docker.internal:27017/auth_db" \
+            -e MONGODB_AUTH_URI="mongodb://mongo:27017/auth_db" \
             -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="host.docker.internal" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
@@ -62,12 +62,12 @@ jobs:
           docker exec auth npm test
           docker stop auth
 
-      # 3️⃣ Run & Test Product service
+      # Run & Test Product service
       - name: Run & Test Product
         run: |
           docker run -d --name product \
-            -e MONGODB_PRODUCT_URI="mongodb://host.docker.internal:27017/product_db" \
-            -e RABBITMQ_HOST="host.docker.internal" \
+            -e MONGODB_PRODUCT_URI="mongodb://mongo:27017/product_db" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
@@ -77,12 +77,12 @@ jobs:
           docker exec product npm test
           docker stop product
 
-      # 4️⃣ Run & Test Order service
+      # Run & Test Order service
       - name: Run & Test Order
         run: |
           docker run -d --name order \
-            -e MONGODB_ORDER_URI="mongodb://host.docker.internal:27017/order_db" \
-            -e RABBITMQ_HOST="host.docker.internal" \
+            -e MONGODB_ORDER_URI="mongodb://mongo:27017/order_db" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
