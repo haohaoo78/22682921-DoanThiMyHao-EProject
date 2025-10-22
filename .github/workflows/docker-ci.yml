@@ -51,21 +51,44 @@ jobs:
           cd ../product && npm install
           cd ../order && npm install
 
-      # --- Start Auth service in background ---
-      - name: Start Auth service (background)
+      # --- Start all services in background ---
+      - name: Start Auth, Product, and Order services
         run: |
+          # Start Auth
           cd auth
-          node src/app.js &
-          sleep 10
+          nohup node src/app.js > ../auth.log 2>&1 &
+          echo "✅ Auth started on port 4001"
+          cd ..
+
+          # Start Product
+          cd product
+          nohup node src/app.js > ../product.log 2>&1 &
+          echo "✅ Product started on port 4002"
+          cd ..
+
+          # Start Order
+          cd order
+          nohup node src/app.js > ../order.log 2>&1 &
+          echo "✅ Order started on port 4003"
+          cd ..
+
+          # Wait for all services to come up
+          echo "⏳ Waiting for services to start..."
+          sleep 20
+          curl -s http://localhost:4001 || echo "⚠️ Auth not reachable yet"
+          curl -s http://localhost:4002 || echo "⚠️ Product not reachable yet"
+          curl -s http://localhost:4003 || echo "⚠️ Order not reachable yet"
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
+          MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
+          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           RABBITMQ_HOST: "localhost"
           RABBITMQ_PORT: "5672"
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
 
-      # --- Create test user for Product ---
+      # --- Create test user in Auth DB ---
       - name: Create test user in Auth DB
         run: |
           cd auth
@@ -83,44 +106,26 @@ jobs:
             })().catch(err => { console.error(err); process.exit(1); });
           "
 
-      # --- Run Auth tests ---
-      - name: Run Auth tests
+      # --- Run all tests (Auth, Product, Order) ---
+      - name: Run Tests for All Services
         run: |
-          cd auth
-          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+          echo "🚀 Running tests..."
+          cd auth && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
+          cd product && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
+          cd order && npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false && cd ..
+
+          echo "✅ All tests completed"
         env:
           MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          RABBITMQ_HOST: "localhost"
-          RABBITMQ_PORT: "5672"
-          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
-          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
-
-      # --- Run Product tests ---
-      - name: Run Product tests (Auth alive)
-        run: |
-          cd product
-          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
-        env:
           MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
+          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
           AUTH_SERVICE_URL: "http://localhost:4001"
+          PRODUCT_SERVICE_URL: "http://localhost:4002"
+          ORDER_SERVICE_URL: "http://localhost:4003"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           RABBITMQ_HOST: "localhost"
           RABBITMQ_PORT: "5672"
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
           TEST_USER: "Haohao78091111"
           TEST_PASS: "Shatou5114*"
-
-      # --- Run Order tests ---
-      - name: Run Order tests
-        run: |
-          cd order
-          npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
-        env:
-          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
-          RABBITMQ_HOST: "localhost"
-          RABBITMQ_PORT: "5672"
-          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
-          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
-          AUTH_SERVICE_URL: "http://localhost:4001"
-          PRODUCT_SERVICE_URL: "http://localhost:4002"
