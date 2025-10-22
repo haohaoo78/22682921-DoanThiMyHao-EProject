@@ -7,74 +7,101 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test:
+  test:
     runs-on: ubuntu-latest
 
-    services:
-      mongo:
-        image: mongo:6
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'" 
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-      rabbitmq:
-        image: rabbitmq:3-management
-        ports:
-          - 5672:5672
-          - 15672:15672
-        env:
-          RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER }}
-          RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASS }}
-        options: >-
-          --health-cmd="rabbitmqctl status"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
     steps:
+      # --- Checkout code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Build all services
-      - name: Build services
+      # --- Create .env files ---
+      - name: Create .env files
+        run: |
+          mkdir -p auth product order
+
+          # Auth
+          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" >> auth/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+
+          # Product
+          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" >> product/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+
+          # Order
+          echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" >> order/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
+          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
+
+      # --- Build Docker images ---
+      - name: Build Docker images
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # --- Run & Test Auth service ---
-      - name: Run & Test Auth
+      # --- Create Docker network ---
+      - name: Create Docker network
+        run: docker network create eproject-net || true
+
+      # --- Start MongoDB ---
+      - name: Start MongoDB container
+        run: |
+          docker run -d --name mongo --network eproject-net mongo:6
+          sleep 10
+
+      # --- Run Auth service + tests ---
+      - name: Run Auth service + tests
         run: |
           docker run -d --name auth \
-            -e MONGODB_AUTH_URI="mongodb://mongo:27017/auth_db" \
-            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="rabbitmq" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --network eproject-net \
+            --env-file ./auth/.env \
             --memory=1024m --memory-swap=1024m \
             auth-service
-          sleep 30
+          # Wait until Auth ready
+          for i in {1..20}; do
+            if docker exec auth curl -s http://localhost:4001/health; then break; else sleep 3; fi
+          done
+          # Run tests
           docker exec auth npm test
-          docker stop auth
-          docker rm auth
+          docker stop auth && docker rm auth
 
-      # --- Run & Test Product service ---
-      - name: Run & Test Product
+      # --- Run Product service + tests ---
+      - name: Run Product service + tests
         run: |
           docker run -d --name product \
-            -e MONGODB_PRODUCT_URI="mongodb://mongo:27017/product_db" \
-            -e RABBITMQ_HOST="rabbitmq" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --network eproject-net \
+            --env-file ./product/.env \
             --memory=1024m --memory-swap=1024m \
             product-service
-          sleep 30
+          # Wait until Product ready
+          for i in {1..20}; do
+            if docker exec product curl -s http://localhost:4002/health; then break; else sleep 3; fi
+          done
           docker exec product npm test
-          docker stop product
-          docker rm product
+          docker stop product && docker rm product
+
+      # --- Optional: Run Order service + tests (bỏ nếu muốn tiết kiệm RAM) ---
+      # - name: Run Order service + tests
+      #   run: |
+      #     docker run -d --name order \
+      #       --network eproject-net \
+      #       --env-file ./order/.env \
+      #       --memory=1024m --memory-swap=1024m \
+      #       order-service
+      #     for i in {1..20}; do
+      #       if docker exec order curl -s http://localhost:4003/health; then break; else sleep 3; fi
+      #     done
+      #     docker exec order npm test
+      #     docker stop order && docker rm order
+
+      # --- Cleanup ---
+      - name: Cleanup containers and network
+        if: always()
+        run: |
+          docker ps -a
+          docker stop $(docker ps -aq) || true
+          docker rm $(docker ps -aq) || true
+          docker network rm eproject-net || true
