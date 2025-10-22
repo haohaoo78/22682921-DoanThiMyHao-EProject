@@ -65,15 +65,34 @@ jobs:
         run: |
           cd auth
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+        env:
+          MONGODB_AUTH_URI: "mongodb://localhost:27017/auth_db"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          RABBITMQ_HOST: "localhost"
+          RABBITMQ_PORT: "5672"
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
 
       # --- Test Product service ---
       - name: Test Product service
         run: |
           cd product
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+        env:
+          MONGODB_PRODUCT_URI: "mongodb://localhost:27017/product_db"
+          RABBITMQ_HOST: "localhost"
+          RABBITMQ_PORT: "5672"
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
 
       # --- Test Order service ---
       - name: Test Order service
         run: |
           cd order
           npx mocha --timeout 20000 src/test/**/*.test.js --exit --parallel=false
+        env:
+          MONGODB_ORDER_URI: "mongodb://localhost:27017/order_db"
+          RABBITMQ_HOST: "localhost"
+          RABBITMQ_PORT: "5672"
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
