@@ -15,78 +15,97 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Build Docker images ---
+      # --- B2. Create .env files from GitHub Secrets ---
+      - name: Create .env files
+        run: |
+          mkdir -p auth product order
+
+          # Auth
+          echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+
+          # Product
+          echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
+          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> product/.env
+          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> product/.env
+          echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> product/.env
+          echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> product/.env
+
+          # Order
+          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" > order/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> order/.env
+          echo "PRODUCT_SERVICE_URL=http://product:4002" >> order/.env
+          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> order/.env
+          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> order/.env
+          echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> order/.env
+          echo "RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }}" >> order/.env
+
+      # --- B3. Build Docker images ---
       - name: Build Docker images
         run: |
           docker build -t auth-service ./auth
           docker build -t product-service ./product
           docker build -t order-service ./order
 
-      # --- B3. Create Docker network ---
+      # --- B4. Create Docker network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- B4. Start MongoDB ---
+      # --- B5. Start MongoDB ---
       - name: Start MongoDB
-        run: |
-          docker run -d --name mongo --network eproject-net mongo:6
-          sleep 10
+        run: docker run -d --name mongo --network eproject-net mongo:6
 
-      # --- B5. Start RabbitMQ ---
+      # --- B6. Start RabbitMQ ---
       - name: Start RabbitMQ
         run: |
           docker run -d --name rabbitmq \
             --network eproject-net \
-            -e RABBITMQ_DEFAULT_USER=haohaao78 \
-            -e RABBITMQ_DEFAULT_PASS=Shatou5114 \
+            -e RABBITMQ_DEFAULT_USER=${{ secrets.RABBITMQ_USER }} \
+            -e RABBITMQ_DEFAULT_PASS=${{ secrets.RABBITMQ_PASS }} \
             rabbitmq:3-management
           sleep 10
 
-      # --- B6. Start Auth service ---
+      # --- B7. Start Auth service ---
       - name: Start Auth service
         run: |
-          docker run -d --name auth \
-            --network eproject-net \
-            --env-file ./auth/.env \
-            auth-service
+          docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if docker exec auth curl -s http://localhost:4001/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
           echo "Auth service is ready"
 
-      # --- B7. Start Product service ---
+      # --- B8. Start Product service ---
       - name: Start Product service
         run: |
-          docker run -d --name product \
-            --network eproject-net \
-            --env-file ./product/.env \
-            product-service
+          docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://localhost:4002/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
           done
           echo "Product service is ready"
 
-      # --- B8. Start Order service ---
+      # --- B9. Start Order service ---
       - name: Start Order service
         run: |
-          docker run -d --name order \
-            --network eproject-net \
-            --env-file ./order/.env \
-            order-service
+          docker run -d --name order --network eproject-net --env-file ./order/.env order-service
           for i in {1..20}; do
-            if docker exec order curl -s http://localhost:4003/health; then break; else sleep 3; fi
+            if docker exec order curl -s http://order:4003/health; then break; else sleep 3; fi
           done
           echo "Order service is ready"
 
-      # --- B9. Run all tests ---
-      - name: Run tests
+      # --- B10. Run all tests ---
+      - name: Run all tests
         run: |
           docker exec auth npm test
           docker exec product npm test
           docker exec order npm test
 
-      # --- B10. Cleanup ---
-      - name: Cleanup containers and network
+      # --- B11. Cleanup containers and network ---
+      - name: Cleanup
         if: always()
         run: |
           docker stop auth product order mongo rabbitmq || true
