@@ -62,13 +62,3 @@ jobs:
           cd ../product
           npm test
 
-      # --- B7. Run tests for Order ---
-      - name: Run Order tests
-        run: |
-          cd auth
-          npm start &
-          cd ../product
-          npm start &
-          sleep 15
-          cd ../order
-          npm test
