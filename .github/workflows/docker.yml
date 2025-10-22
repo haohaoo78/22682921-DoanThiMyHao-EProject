@@ -25,7 +25,7 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
           echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
           echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
-          echo "PORT=4001" >> auth/.env
+          echo "PORT=3000" >> auth/.env
 
           # Product service
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
