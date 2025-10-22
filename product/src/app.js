@@ -8,6 +8,7 @@ require("dotenv").config();
 class App {
   constructor() {
     this.app = express();
+    this.connectDB();
     this.setMiddlewares();
     this.setRoutes();
     this.setupMessageBroker();
@@ -35,9 +36,9 @@ class App {
     this.app.use("/api/products", productsRouter);
   }
 
-async setupMessageBroker() {
-    await MessageBroker.connect(); // await để channel chắc chắn sẵn sàng
-}
+  setupMessageBroker() {
+    MessageBroker.connect();
+  }
 
   start(port = config.port) {
     this.server = this.app.listen(port, () =>

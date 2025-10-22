@@ -24,3 +24,4 @@ module.exports = {
   // Auth service URL
   authServiceUrl: process.env.AUTH_SERVICE_URL || "http://auth:3000",
 };
+
