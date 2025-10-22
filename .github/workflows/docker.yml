@@ -63,19 +63,20 @@ jobs:
       - name: Start Auth service
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
+          # Chờ Auth sẵn sàng
           for i in {1..20}; do
-            if docker exec auth curl -s http://auth:4001; then break; else sleep 3; fi
+            if docker exec auth curl -s http://auth:4001/health; then break; else sleep 3; fi
           done
-          echo "Auth service is ready"
+          # Tạo user test để Product có thể login
+          docker exec auth node -e "require('./src/setupTestUser').createTestUser(process.env.LOGIN_TEST_USER, process.env.LOGIN_TEST_PASSWORD)"
 
       # --- B8. Start Product service ---
       - name: Start Product service
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://product:4002; then break; else sleep 3; fi
+            if docker exec product curl -s http://product:4002/health; then break; else sleep 3; fi
           done
-          echo "Product service is ready"
 
       # --- B9. Run tests ---
       - name: Run all tests
