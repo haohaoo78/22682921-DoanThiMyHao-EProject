@@ -44,47 +44,73 @@ jobs:
       - name: Build Auth service
         run: docker build -t auth-service ./auth
 
-      # 3️⃣ Run Auth container
-      - name: Run Auth container
-        run: |
-          docker run -d --name auth \
-            --network host \
-            -e MONGODB_AUTH_URI="${{ secrets.MONGODB_AUTH_URI }}" \
-            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            -e RABBITMQ_HOST="localhost" \
-            -e RABBITMQ_PORT="5672" \
-            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
-            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            auth-service
-
-      # 4️⃣ Test Auth service
-      - name: Test Auth service
-        run: docker exec auth npm test
-
-      # 5️⃣ Stop Auth container
-      - name: Stop Auth container
-        run: docker stop auth
-
-      # 6️⃣ Build Product service
+      # 3️⃣ Build Product service
       - name: Build Product service
         run: docker build -t product-service ./product
 
-      # 7️⃣ Run Product container
-      - name: Run Product container
+      # 4️⃣ Build Order service
+      - name: Build Order service
+        run: docker build -t order-service ./order
+
+      # 5️⃣ Run Auth container
+      - name: Run Auth container
         run: |
-          docker run -d --name product \
-            --network host \
-            -e MONGODB_PRODUCT_URI="${{ secrets.MONGODB_PRODUCT_URI }}" \
-            -e RABBITMQ_HOST="localhost" \
+          docker run -d --name auth \
+            -e MONGODB_AUTH_URI="${{ secrets.MONGODB_AUTH_URI }}" \
+            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --link mongo:mongo \
+            --link rabbitmq:rabbitmq \
+            auth-service
+
+      # 6️⃣ Run Product container
+      - name: Run Product container
+        run: |
+          docker run -d --name product \
+            -e MONGODB_PRODUCT_URI="${{ secrets.MONGODB_PRODUCT_URI }}" \
+            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_PORT="5672" \
+            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
+            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --link mongo:mongo \
+            --link rabbitmq:rabbitmq \
             product-service
 
-      # 8️⃣ Test Product service
+      # 7️⃣ Run Order container
+      - name: Run Order container
+        run: |
+          docker run -d --name order \
+            -e MONGODB_ORDER_URI="${{ secrets.MONGODB_ORDER_URI }}" \
+            -e RABBITMQ_HOST="rabbitmq" \
+            -e RABBITMQ_PORT="5672" \
+            -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
+            -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
+            --link mongo:mongo \
+            --link rabbitmq:rabbitmq \
+            order-service
+
+      # 8️⃣ Wait for containers
+      - name: Wait for services
+        run: sleep 10
+
+      # 9️⃣ Test Auth service
+      - name: Test Auth service
+        run: docker exec auth npm test
+
+      # 🔟 Test Product service
       - name: Test Product service
         run: docker exec product npm test
 
-      # 9️⃣ Stop Product container
-      - name: Stop Product container
-        run: docker stop product
+      # 1️⃣1️⃣ Test Order service
+      - name: Test Order service
+        run: docker exec order npm test
+
+      # 1️⃣2️⃣ Stop all containers
+      - name: Stop all containers
+        run: |
+          docker stop auth
+          docker stop product
+          docker stop order
