@@ -36,79 +36,61 @@ jobs:
           --health-retries=5
 
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Build Auth service
+      # Build services
       - name: Build Auth service
         run: docker build -t auth-service ./auth
-
-      # 3️⃣ Build Product service
       - name: Build Product service
         run: docker build -t product-service ./product
-
-      # 4️⃣ Build Order service
       - name: Build Order service
         run: docker build -t order-service ./order
 
-      # 5️⃣ Run Auth container
+      # Run containers (kết nối service bằng hostname)
       - name: Run Auth container
         run: |
           docker run -d --name auth \
-            -e MONGODB_AUTH_URI="${{ secrets.MONGODB_AUTH_URI }}" \
+            -e MONGODB_AUTH_URI="mongodb://mongo:27017/auth_db" \
             -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
             -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --link mongo:mongo \
-            --link rabbitmq:rabbitmq \
             auth-service
 
-      # 6️⃣ Run Product container
       - name: Run Product container
         run: |
           docker run -d --name product \
-            -e MONGODB_PRODUCT_URI="${{ secrets.MONGODB_PRODUCT_URI }}" \
+            -e MONGODB_PRODUCT_URI="mongodb://mongo:27017/product_db" \
             -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --link mongo:mongo \
-            --link rabbitmq:rabbitmq \
             product-service
 
-      # 7️⃣ Run Order container
       - name: Run Order container
         run: |
           docker run -d --name order \
-            -e MONGODB_ORDER_URI="${{ secrets.MONGODB_ORDER_URI }}" \
+            -e MONGODB_ORDER_URI="mongodb://mongo:27017/order_db" \
             -e RABBITMQ_HOST="rabbitmq" \
             -e RABBITMQ_PORT="5672" \
             -e RABBITMQ_USER="${{ secrets.RABBITMQ_USER }}" \
             -e RABBITMQ_PASS="${{ secrets.RABBITMQ_PASS }}" \
-            --link mongo:mongo \
-            --link rabbitmq:rabbitmq \
             order-service
 
-      # 8️⃣ Wait for containers
       - name: Wait for services
-        run: sleep 10
+        run: sleep 15
 
-      # 9️⃣ Test Auth service
+      # Test all services
       - name: Test Auth service
         run: docker exec auth npm test
-
-      # 🔟 Test Product service
       - name: Test Product service
         run: docker exec product npm test
-
-      # 1️⃣1️⃣ Test Order service
       - name: Test Order service
         run: docker exec order npm test
 
-      # 1️⃣2️⃣ Stop all containers
+      # Stop all containers
       - name: Stop all containers
         run: |
           docker stop auth
