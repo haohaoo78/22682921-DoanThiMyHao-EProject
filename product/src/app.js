@@ -35,9 +35,9 @@ class App {
     this.app.use("/api/products", productsRouter);
   }
 
-  setupMessageBroker() {
-    MessageBroker.connect();
-  }
+async setupMessageBroker() {
+    await MessageBroker.connect(); // await để channel chắc chắn sẵn sàng
+}
 
   start(port = config.port) {
     this.server = this.app.listen(port, () =>

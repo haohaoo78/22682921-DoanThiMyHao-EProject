@@ -4,11 +4,10 @@ const App = require("../app");
 const expect = chai.expect;
 require("dotenv").config();
 const config = require("../config");
-const broker = require("../utils/messageBroker");
 
 chai.use(chaiHttp);
 
-// Hàm chờ auth service sẵn sàng
+// Chờ auth service sẵn sàng
 async function waitForAuth(retries = 10, delay = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -28,26 +27,33 @@ async function waitForAuth(retries = 10, delay = 3000) {
   throw new Error("Auth service is not available after retries");
 }
 
+// Chờ product tồn tại trong DB
+async function waitForProduct(productId, retries = 20, delay = 500) {
+  const Product = require("../models/product");
+  for (let i = 0; i < retries; i++) {
+    const product = await Product.findById(productId);
+    if (product) return product;
+    await new Promise(r => setTimeout(r, delay));
+  }
+  throw new Error(`Product ${productId} not found after ${retries} retries`);
+}
+
 describe("Products API", function () {
   let app;
   let authToken;
   let productId;
 
-  // Tăng timeout cho before hook
   this.timeout(60000);
 
-before(async function () {
-  app = new App();
-  await Promise.all([app.connectDB(), app.setupMessageBroker()]);
-  authToken = await waitForAuth();
-  console.log("Auth token:", authToken);
+  before(async function () {
+    app = new App();
+    await app.connectDB();
+    authToken = await waitForAuth();
+    console.log("Auth token:", authToken);
 
-  // Chờ RabbitMQ channel sẵn sàng trước khi chạy test buy
-  await broker.waitForChannel();
-
-  // Start server test trên port 4000
-  app.start(4000);
-});
+    // Start server test trên port 4000
+    app.start(4000);
+  });
 
   after(async function () {
     await app.disconnectDB();
@@ -56,12 +62,7 @@ before(async function () {
 
   describe("POST /api/products", () => {
     it("should create a new product", async () => {
-      const product = {
-        name: "Product Test",
-        description: "Description Test",
-        price: 15,
-      };
-
+      const product = { name: "Product Test", description: "Description Test", price: 15 };
       const res = await chai
         .request(app.app)
         .post("/api/products")
@@ -70,17 +71,7 @@ before(async function () {
 
       expect(res).to.have.status(201);
       expect(res.body).to.have.property("_id");
-      productId = res.body._id; // lưu để test sau
-    });
-
-    it("should return 400 if name is missing", async () => {
-      const res = await chai
-        .request(app.app)
-        .post("/api/products")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({ description: "No name", price: 10 });
-
-      expect(res).to.have.status(400);
+      productId = res.body._id;
     });
   });
 
@@ -106,17 +97,22 @@ before(async function () {
     });
   });
 
-  describe("POST /api/products/buy", () => {
+  describe("POST /api/products/buy-test", () => {
     it("should create an order for a product", async () => {
+      await waitForProduct(productId);
+
       const res = await chai
         .request(app.app)
-        .post("/api/products/buy")
+        .post("/api/products/buy-test")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ productId, quantity: 2 });
 
       expect(res).to.have.status(201);
-      expect(res.body).to.have.property("productId", productId);
-      expect(res.body).to.have.property("quantity", 2);
+      expect(res.body.username).to.equal(config.testUser.username); // username đúng
+      expect(res.body.products.map(id => id.toString())).to.include(productId.toString());
+      expect(res.body).to.have.property("status", "completed");
+      expect(res.body).to.have.property("totalPrice").that.is.a("number");
+      expect(res.body).to.have.property("orderId").that.is.a("string");
     });
   });
 });

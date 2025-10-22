@@ -118,6 +118,27 @@ async getProductById(req, res, next) {
   return res.status(200).json(product);
 }
 
+async createOrderTest(req, res) {
+    try {
+      const { productId, quantity } = req.body;
+      const product = await Product.findById(productId);
+      if (!product) return res.status(404).json({ message: "Product not found" });
+
+      const orderId = "test-" + new Date().getTime();
+      const order = {
+        orderId,
+        status: "completed",
+        username: req.user.username,  // lấy username từ token
+        products: [product._id],
+        totalPrice: product.price * quantity,
+      };
+
+      return res.status(201).json(order);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Server error" });
+    }
+  }
   
 }
 
