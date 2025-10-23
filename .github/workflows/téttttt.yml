@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ----------------------------------------------------------
-  # 🧪 B1. TEST TỪNG SERVICE THẬT
+  # 🧪 B1. TEST TỪNG SERVICE THẬT + PUSH TEMP IMAGE
   # ----------------------------------------------------------
   test_services:
     runs-on: ubuntu-latest
@@ -29,14 +29,14 @@ jobs:
           docker pull mongo:6
           docker pull rabbitmq:3-management
 
-      # --- Chạy MongoDB & RabbitMQ ---
+      # --- Run MongoDB & RabbitMQ ---
       - name: Start MongoDB & RabbitMQ
         run: |
           docker run -d --name mongo --network eproject-net mongo:6
           docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
           sleep 10
 
-      # --- Chạy Auth service ---
+      # --- Run Auth service ---
       - name: Run Auth container
         run: |
           docker run -d --name auth --network eproject-net \
@@ -52,7 +52,7 @@ jobs:
         env:
           NODE_ENV: test
 
-      # --- Chạy Product service ---
+      # --- Run Product service ---
       - name: Run Product container
         run: |
           docker run -d --name product --network eproject-net \
@@ -70,7 +70,7 @@ jobs:
         env:
           NODE_ENV: test
 
-      # --- Chạy Order service ---
+      # --- Run Order service ---
       - name: Run Order container
         run: |
           docker run -d --name order --network eproject-net \
@@ -80,7 +80,7 @@ jobs:
             eproject-order
           sleep 10
 
-      # --- Chạy Gateway service ---
+      # --- Run Gateway service ---
       - name: Run Gateway container
         run: |
           docker run -d --name gateway --network eproject-net \
@@ -99,8 +99,17 @@ jobs:
           curl -f http://localhost:3001 || echo "Product OK"
           curl -f http://localhost:3002 || echo "Order OK"
 
+      # --- Push temporary images để job khác dùng ---
+      - name: Push temporary images to Docker Hub
+        run: |
+          USER=${{ secrets.DOCKER_USERNAME }}
+          for service in auth product order api-gateway; do
+            docker tag eproject-$service $USER/$service-ci-test:latest
+            docker push $USER/$service-ci-test:latest
+          done
+
   # ----------------------------------------------------------
-  # 🐳 B2. BUILD + PUSH IMAGE SAU KHI TEST PASS
+  # 🐳 B2. PULL + TAG + PUSH IMAGE CHÍNH THỨC
   # ----------------------------------------------------------
   build_push:
     runs-on: ubuntu-latest
@@ -115,11 +124,12 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Tag & Push all images
+      - name: Pull temporary images and push latest
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order api-gateway; do
-            docker tag eproject-$service $USER/eproject-$service:latest
+            docker pull $USER/$service-ci-test:latest
+            docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
           done
 
