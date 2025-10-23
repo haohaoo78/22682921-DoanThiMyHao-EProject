@@ -106,7 +106,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- Push temporary images ---
+      # --- Push temporary images (services + Mongo + RabbitMQ) ---
       - name: Push temporary images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
@@ -114,6 +114,10 @@ jobs:
             docker tag eproject-$service $USER/$service-ci-test:latest
             docker push $USER/$service-ci-test:latest
           done
+          docker tag mongo:6 $USER/mongo-ci-test:latest
+          docker push $USER/mongo-ci-test:latest
+          docker tag rabbitmq:3-management $USER/rabbitmq-ci-test:latest
+          docker push $USER/rabbitmq-ci-test:latest
 
       # --- Cleanup ---
       - name: Cleanup
@@ -140,7 +144,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- Pull tạm, tag lại và push chính thức ---
+      # --- Pull tạm, tag lại và push chính thức (services + Mongo + RabbitMQ) ---
       - name: Push official images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
@@ -149,3 +153,9 @@ jobs:
             docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
           done
+          docker pull $USER/mongo-ci-test:latest
+          docker tag $USER/mongo-ci-test:latest $USER/eproject-mongo:latest
+          docker push $USER/eproject-mongo:latest
+          docker pull $USER/rabbitmq-ci-test:latest
+          docker tag $USER/rabbitmq-ci-test:latest $USER/eproject-rabbitmq:latest
+          docker push $USER/eproject-rabbitmq:latest
