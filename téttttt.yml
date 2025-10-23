@@ -15,23 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- Login Docker Hub để push tạm image ---
-      - name: Login Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
       # --- Tạo Docker network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- Build và tag tạm image ---
-      - name: Build temporary Docker images
+      # --- Build tất cả images ---
+      - name: Build Docker images
         run: |
-          for service in auth product order gateway; do
-            docker build -t ${{ secrets.DOCKER_USERNAME }}/$service-temp ./$(service)
-          done
+          docker build -t eproject-auth ./auth
+          docker build -t eproject-product ./product
+          docker build -t eproject-order ./order
+          docker build -t eproject-gateway ./api-gateway
           docker pull mongo:6
           docker pull rabbitmq:3-management
 
@@ -42,19 +36,23 @@ jobs:
           docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
           sleep 10
 
-      # --- Run và test từng service ---
+      # --- Run Auth service ---
       - name: Run Auth container
         run: |
           docker run -d --name auth --network eproject-net \
             -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
             -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
             -p 3000:3000 \
-            ${{ secrets.DOCKER_USERNAME }}/auth-temp
+            eproject-auth
           sleep 15
 
+      # --- Test Auth ---
       - name: Test Auth
         run: docker exec auth npm test --if-present
+        env:
+          NODE_ENV: test
 
+      # --- Run Product service ---
       - name: Run Product container
         run: |
           docker run -d --name product --network eproject-net \
@@ -63,21 +61,26 @@ jobs:
             -e AUTH_SERVICE_URL=http://auth:3000 \
             -e RABBITMQ_URL=amqp://rabbitmq:5672 \
             -p 3001:3001 \
-            ${{ secrets.DOCKER_USERNAME }}/product-temp
+            eproject-product
           sleep 15
 
+      # --- Test Product ---
       - name: Test Product
         run: docker exec product npm test --if-present
+        env:
+          NODE_ENV: test
 
+      # --- Run Order service ---
       - name: Run Order container
         run: |
           docker run -d --name order --network eproject-net \
             -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
             -e PRODUCT_SERVICE_URL=http://product:3001 \
             -p 3002:3002 \
-            ${{ secrets.DOCKER_USERNAME }}/order-temp
+            eproject-order
           sleep 10
 
+      # --- Run Gateway service ---
       - name: Run Gateway container
         run: |
           docker run -d --name gateway --network eproject-net \
@@ -85,26 +88,11 @@ jobs:
             -e PRODUCT_SERVICE_URL=http://product:3001 \
             -e ORDER_SERVICE_URL=http://order:3002 \
             -p 3003:3003 \
-            ${{ secrets.DOCKER_USERNAME }}/gateway-temp
+            eproject-gateway
           sleep 10
 
-      # --- Push tạm image lên Docker Hub để job khác dùng ---
-      - name: Push temporary images
-        run: |
-          for service in auth product order gateway; do
-            docker push ${{ secrets.DOCKER_USERNAME }}/$service-temp:latest
-          done
-
-      # --- Cleanup containers ---
-      - name: Cleanup containers
-        if: always()
-        run: |
-          docker stop auth product order gateway mongo rabbitmq || true
-          docker rm auth product order gateway mongo rabbitmq || true
-          docker network rm eproject-net || true
-
   # ----------------------------------------------------------
-  # 🐳 B2. BUILD + PUSH IMAGE CHÍNH THỨC
+  # 🐳 B2. BUILD + PUSH IMAGE SAU KHI TEST PASS
   # ----------------------------------------------------------
   build_push:
     runs-on: ubuntu-latest
@@ -113,16 +101,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Pull temporary images và tag final
+      - name: Tag & Push all images
         run: |
+          USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order gateway; do
-            docker pull ${{ secrets.DOCKER_USERNAME }}/$service-temp:latest
-            docker tag ${{ secrets.DOCKER_USERNAME }}/$service-temp:latest ${{ secrets.DOCKER_USERNAME }}/$service:latest
-            docker push ${{ secrets.DOCKER_USERNAME }}/$service:latest
+            docker tag eproject-$service $USER/eproject-$service:latest
+            docker push $USER/eproject-$service:latest
           done
+
+  # ----------------------------------------------------------
+  # 🧹 B3. CLEANUP
+  # ----------------------------------------------------------
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: build_push
+    if: always()
+    steps:
+      - name: Cleanup containers and network
+        run: |
+          docker stop auth product order gateway mongo rabbitmq || true
+          docker rm auth product order gateway mongo rabbitmq || true
+          docker network rm eproject-net || true
