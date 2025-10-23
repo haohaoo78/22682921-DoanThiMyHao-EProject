@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ----------------------------------------------------------
-  # 🧪 B1. TEST TỪNG SERVICE TRONG MATRIX
+  # 🧪 B1. TEST TỪNG SERVICE TRONG MATRIX (Docker + MongoDB thật)
   # ----------------------------------------------------------
   test:
     runs-on: ubuntu-latest
@@ -18,10 +18,21 @@ jobs:
         image: mongo:6
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=10
+
       rabbitmq:
         image: rabbitmq:3-management
         ports:
           - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=10
 
     strategy:
       matrix:
@@ -29,26 +40,37 @@ jobs:
         node-version: [20.x]
 
     steps:
-      # --- Lấy code ---
+      # --- B1. Lấy code ---
       - uses: actions/checkout@v4
 
-      # --- Cài Node ---
+      # --- B2. Cài Node.js ---
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      # --- Tạo file .env (cho từng service) ---
+      # --- B3. Tạo file .env (theo service) ---
       - name: Create .env for ${{ matrix.service }}
         run: |
           mkdir -p ${{ matrix.service }}
-          echo "PORT=3000" > ${{ matrix.service }}/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
-          echo "MONGO_URI=mongodb://localhost:27017/${{ matrix.service }}_test" >> ${{ matrix.service }}/.env
+
+          if [ "${{ matrix.service }}" = "auth" ]; then
+            echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_test" > ${{ matrix.service }}/.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
+            echo "PORT=3000" >> ${{ matrix.service }}/.env
+          fi
+
+          if [ "${{ matrix.service }}" = "product" ]; then
+            echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_test" > ${{ matrix.service }}/.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
+            echo "AUTH_SERVICE_URL=http://localhost:3000" >> ${{ matrix.service }}/.env
+            echo "PORT=3001" >> ${{ matrix.service }}/.env
+          fi
+
           echo "RABBITMQ_URL=amqp://localhost:5672" >> ${{ matrix.service }}/.env
 
-      # --- Cài dependencies ---
+      # --- B4. Cài dependencies ---
       - name: Install dependencies
         working-directory: ./${{ matrix.service }}
         run: |
@@ -59,14 +81,16 @@ jobs:
           fi
           echo "✅ Installed dependencies for ${{ matrix.service }}"
 
-      # --- Build (nếu có) ---
+      # --- B5. Build (nếu có) ---
       - name: Build ${{ matrix.service }}
         working-directory: ./${{ matrix.service }}
         run: npm run build --if-present
 
-      # --- Test thật (nếu có test script) ---
+      # --- B6. Chạy test thật ---
       - name: Run tests for ${{ matrix.service }}
         working-directory: ./${{ matrix.service }}
+        env:
+          NODE_ENV: test
         run: |
           echo "🧪 Running tests for ${{ matrix.service }}..."
           npm test --if-present || echo "✅ No test script for ${{ matrix.service }}"
@@ -124,4 +148,4 @@ jobs:
           docker network prune -f || true
 
       - name: Finish message
-        run: echo "🎯 CI/CD pipeline completed successfully — no deploy stage configured."
+        run: echo "🎯 CI/CD pipeline completed successfully — tested Auth & Product only."
