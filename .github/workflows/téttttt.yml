@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- Setup Docker network ---
+      # --- Tạo Docker network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- Build all images ---
+      # --- Build tất cả images ---
       - name: Build Docker images
         run: |
           docker build -t eproject-auth ./auth
@@ -46,13 +46,13 @@ jobs:
             eproject-auth
           sleep 15
 
-      # --- Run Auth tests ---
+      # --- Test Auth ---
       - name: Test Auth
         run: docker exec auth npm test --if-present
         env:
           NODE_ENV: test
 
-      # --- Run Product service (phụ thuộc Auth) ---
+      # --- Run Product service ---
       - name: Run Product container
         run: |
           docker run -d --name product --network eproject-net \
@@ -64,7 +64,7 @@ jobs:
             eproject-product
           sleep 15
 
-      # --- Run Product tests ---
+      # --- Test Product ---
       - name: Test Product
         run: docker exec product npm test --if-present
         env:
@@ -107,18 +107,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push all images
+      - name: Tag & Push all images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
-          docker tag eproject-auth $USER/eproject-auth:latest
-          docker tag eproject-product $USER/eproject-product:latest
-          docker tag eproject-order $USER/eproject-order:latest
-          docker tag eproject-gateway $USER/eproject-gateway:latest
-
-          docker push $USER/eproject-auth:latest
-          docker push $USER/eproject-product:latest
-          docker push $USER/eproject-order:latest
-          docker push $USER/eproject-gateway:latest
+          for service in auth product order gateway; do
+            docker tag eproject-$service $USER/eproject-$service:latest
+            docker push $USER/eproject-$service:latest
+          done
 
   # ----------------------------------------------------------
   # 🧹 B3. CLEANUP
