@@ -99,19 +99,21 @@ jobs:
           curl -f http://localhost:3001 || echo "Product OK"
           curl -f http://localhost:3002 || echo "Order OK"
 
-      # --- Push temporary images để job khác dùng ---
-      - name: Login to Docker Hub
+      # --- Login Docker Hub ---
+      - name: Login Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # --- Push temporary images ---
       - name: Push temporary images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order api-gateway; do
             docker tag eproject-$service $USER/$service-ci-test:latest
             docker push $USER/$service-ci-test:latest
+          done
 
       # --- Cleanup ---
       - name: Cleanup
@@ -146,3 +148,4 @@ jobs:
             docker pull $USER/$service-ci-test:latest
             docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
+          done
