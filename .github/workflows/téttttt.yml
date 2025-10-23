@@ -41,7 +41,7 @@ jobs:
         run: |
           docker run -d --name auth --network eproject-net \
             -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
             -p 3000:3000 \
             eproject-auth
           sleep 15
@@ -57,7 +57,7 @@ jobs:
         run: |
           docker run -d --name product --network eproject-net \
             -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
             -e AUTH_SERVICE_URL=http://auth:3000 \
             -e RABBITMQ_URL=amqp://rabbitmq:5672 \
             -p 3001:3001 \
@@ -100,13 +100,18 @@ jobs:
           curl -f http://localhost:3002 || echo "Order OK"
 
       # --- Push temporary images để job khác dùng ---
-      - name: Push temporary images to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push temporary images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order api-gateway; do
             docker tag eproject-$service $USER/$service-ci-test:latest
             docker push $USER/$service-ci-test:latest
-          done
 
       # --- Cleanup ---
       - name: Cleanup
@@ -127,7 +132,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # --- Login Docker Hub ---
-      - name: Login to Docker Hub
+      - name: Login Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -141,4 +146,3 @@ jobs:
             docker pull $USER/$service-ci-test:latest
             docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
-          done
