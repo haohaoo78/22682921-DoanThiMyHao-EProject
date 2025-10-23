@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ----------------------------------------------------------
-  # 🧪 B1. TEST TỪNG SERVICE TRONG MATRIX (Docker + MongoDB thật)
+  # 🧪 B1. TEST TỪNG SERVICE (Docker + MongoDB + RabbitMQ thật)
   # ----------------------------------------------------------
   test:
     runs-on: ubuntu-latest
@@ -36,64 +36,71 @@ jobs:
 
     strategy:
       matrix:
-        service: [auth, product]   # ✅ chỉ test 2 service này
+        service: [auth, product]
         node-version: [20.x]
 
     steps:
-      # --- B1. Lấy code ---
+      # --- Lấy code ---
       - uses: actions/checkout@v4
 
-      # --- B2. Cài Node.js ---
+      # --- Cài Node.js ---
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      # --- B3. Tạo file .env (theo service) ---
-      - name: Create .env for ${{ matrix.service }}
+      # --- Tạo Docker network ---
+      - name: Create Docker network
+        run: docker network create eproject-net || true
+
+      # --- Build service image ---
+      - name: Build ${{ matrix.service }} image
+        run: docker build -t eproject-${{ matrix.service }} ./${{ matrix.service }}
+
+      # --- Chạy Auth container trước nếu cần ---
+      - name: Start Auth container (for Product test)
+        if: matrix.service == 'product'
         run: |
+          docker run -d --name auth --network eproject-net \
+            -e MONGODB_AUTH_URI=mongodb://mongodb:27017/auth_test \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
+            -p 3000:3000 \
+            eproject-auth
+          sleep 15
+
+      # --- Chạy service container để test ---
+      - name: Start ${{ matrix.service }} container
+        run: |
+          ENV_FILE=./${{ matrix.service }}/.env
           mkdir -p ${{ matrix.service }}
-
+          
           if [ "${{ matrix.service }}" = "auth" ]; then
-            echo "MONGODB_AUTH_URI=mongodb://localhost:27017/auth_test" > ${{ matrix.service }}/.env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
-            echo "PORT=3000" >> ${{ matrix.service }}/.env
+            echo "MONGODB_AUTH_URI=mongodb://mongodb:27017/auth_test" > $ENV_FILE
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> $ENV_FILE
+            echo "PORT=3000" >> $ENV_FILE
           fi
-
+          
           if [ "${{ matrix.service }}" = "product" ]; then
-            echo "MONGODB_PRODUCT_URI=mongodb://localhost:27017/product_test" > ${{ matrix.service }}/.env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
-            echo "AUTH_SERVICE_URL=http://localhost:3000" >> ${{ matrix.service }}/.env
-            echo "PORT=3001" >> ${{ matrix.service }}/.env
+            echo "MONGODB_PRODUCT_URI=mongodb://mongodb:27017/product_test" > $ENV_FILE
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> $ENV_FILE
+            echo "AUTH_SERVICE_URL=http://auth:3000" >> $ENV_FILE
+            echo "PORT=3001" >> $ENV_FILE
           fi
 
-          echo "RABBITMQ_URL=amqp://localhost:5672" >> ${{ matrix.service }}/.env
+          echo "RABBITMQ_URL=amqp://rabbitmq:5672" >> $ENV_FILE
 
-      # --- B4. Cài dependencies ---
-      - name: Install dependencies
-        working-directory: ./${{ matrix.service }}
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci || npm install
-          else
-            npm install
-          fi
-          echo "✅ Installed dependencies for ${{ matrix.service }}"
+          docker run -d --name ${{ matrix.service }} --network eproject-net \
+            --env-file $ENV_FILE \
+            -p $([[ "${{ matrix.service }}" = "auth" ]] && echo 3000 || echo 3001):$([[ "${{ matrix.service }}" = "auth" ]] && echo 3000 || echo 3001) \
+            eproject-${{ matrix.service }}
+          sleep 15
 
-      # --- B5. Build (nếu có) ---
-      - name: Build ${{ matrix.service }}
-        working-directory: ./${{ matrix.service }}
-        run: npm run build --if-present
-
-      # --- B6. Chạy test thật ---
+      # --- Chạy test thật ---
       - name: Run tests for ${{ matrix.service }}
-        working-directory: ./${{ matrix.service }}
+        run: docker exec ${{ matrix.service }} npm test --if-present
         env:
           NODE_ENV: test
-        run: |
-          echo "🧪 Running tests for ${{ matrix.service }}..."
-          npm test --if-present || echo "✅ No test script for ${{ matrix.service }}"
 
   # ----------------------------------------------------------
   # 🐳 B2. BUILD + PUSH IMAGE SAU KHI TEST PASS
@@ -105,7 +112,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [auth, product]   # ✅ chỉ build/push 2 service này
+        service: [auth, product]
 
     steps:
       # --- Lấy code ---
