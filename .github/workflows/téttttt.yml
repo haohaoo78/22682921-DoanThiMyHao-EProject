@@ -19,7 +19,7 @@ jobs:
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- Build tất cả Docker images ---
+      # --- Build Docker images cho 4 service ---
       - name: Build Docker images
         run: |
           for service in auth product order api-gateway; do
@@ -36,35 +36,27 @@ jobs:
           docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
           sleep 10
 
-      # --- Run Auth service ---
+      # --- Run và test Auth service ---
       - name: Run Auth container
-        run: |
-          docker run -d --name auth --network eproject-net \
-            -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-            -p 3000:3000 \
-            eproject-auth
-          sleep 15
-
-      # --- Test Auth ---
+        run: docker run -d --name auth --network eproject-net \
+              -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
+              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+              -p 3000:3000 \
+              eproject-auth
       - name: Test Auth
         run: docker exec auth npm test --if-present
         env:
           NODE_ENV: test
 
-      # --- Run Product service ---
+      # --- Run và test Product service ---
       - name: Run Product container
-        run: |
-          docker run -d --name product --network eproject-net \
-            -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-            -e AUTH_SERVICE_URL=http://auth:3000 \
-            -e RABBITMQ_URL=amqp://rabbitmq:5672 \
-            -p 3001:3001 \
-            eproject-product
-          sleep 15
-
-      # --- Test Product ---
+        run: docker run -d --name product --network eproject-net \
+              -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
+              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+              -e AUTH_SERVICE_URL=http://auth:3000 \
+              -e RABBITMQ_URL=amqp://rabbitmq:5672 \
+              -p 3001:3001 \
+              eproject-product
       - name: Test Product
         run: docker exec product npm test --if-present
         env:
@@ -72,24 +64,20 @@ jobs:
 
       # --- Run Order service ---
       - name: Run Order container
-        run: |
-          docker run -d --name order --network eproject-net \
-            -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
-            -e PRODUCT_SERVICE_URL=http://product:3001 \
-            -p 3002:3002 \
-            eproject-order
-          sleep 10
+        run: docker run -d --name order --network eproject-net \
+              -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
+              -e PRODUCT_SERVICE_URL=http://product:3001 \
+              -p 3002:3002 \
+              eproject-order
 
-      # --- Run Gateway service ---
+      # --- Run API Gateway service ---
       - name: Run Gateway container
-        run: |
-          docker run -d --name gateway --network eproject-net \
-            -e AUTH_SERVICE_URL=http://auth:3000 \
-            -e PRODUCT_SERVICE_URL=http://product:3001 \
-            -e ORDER_SERVICE_URL=http://order:3002 \
-            -p 3003:3003 \
-            eproject-api-gateway
-          sleep 15
+        run: docker run -d --name gateway --network eproject-net \
+              -e AUTH_SERVICE_URL=http://auth:3000 \
+              -e PRODUCT_SERVICE_URL=http://product:3001 \
+              -e ORDER_SERVICE_URL=http://order:3002 \
+              -p 3003:3003 \
+              eproject-api-gateway
 
       # --- Kiểm tra các service đã chạy ---
       - name: Test services
@@ -106,18 +94,18 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- Push temporary images (services + Mongo + RabbitMQ) ---
+      # --- Push temporary images (tag :test) ---
       - name: Push temporary images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order api-gateway; do
-            docker tag eproject-$service $USER/$service-ci-test:latest
-            docker push $USER/$service-ci-test:latest
+            docker tag eproject-$service $USER/eproject-$service:test
+            docker push $USER/eproject-$service:test
           done
-          docker tag mongo:6 $USER/mongo-ci-test:latest
-          docker push $USER/mongo-ci-test:latest
-          docker tag rabbitmq:3-management $USER/rabbitmq-ci-test:latest
-          docker push $USER/rabbitmq-ci-test:latest
+          docker tag mongo:6 $USER/eproject-mongo:test
+          docker push $USER/eproject-mongo:test
+          docker tag rabbitmq:3-management $USER/eproject-rabbitmq:test
+          docker push $USER/eproject-rabbitmq:test
 
       # --- Cleanup ---
       - name: Cleanup
@@ -128,7 +116,7 @@ jobs:
           docker network rm eproject-net || true
 
   # ----------------------------------------------------------
-  # 🐳 B2. PULL TEMP IMAGE + PUSH CHÍNH THỨC
+  # 🐳 B2. PUSH IMAGE CHÍNH THỨC
   # ----------------------------------------------------------
   push_images:
     runs-on: ubuntu-latest
@@ -144,18 +132,18 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- Pull tạm, tag lại và push chính thức (services + Mongo + RabbitMQ) ---
+      # --- Pull tạm, tag lại :latest và push chính thức ---
       - name: Push official images
         run: |
           USER=${{ secrets.DOCKER_USERNAME }}
           for service in auth product order api-gateway; do
-            docker pull $USER/$service-ci-test:latest
-            docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
+            docker pull $USER/eproject-$service:test
+            docker tag $USER/eproject-$service:test $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
           done
-          docker pull $USER/mongo-ci-test:latest
-          docker tag $USER/mongo-ci-test:latest $USER/eproject-mongo:latest
+          docker pull $USER/eproject-mongo:test
+          docker tag $USER/eproject-mongo:test $USER/eproject-mongo:latest
           docker push $USER/eproject-mongo:latest
-          docker pull $USER/rabbitmq-ci-test:latest
-          docker tag $USER/rabbitmq-ci-test:latest $USER/eproject-rabbitmq:latest
+          docker pull $USER/eproject-rabbitmq:test
+          docker tag $USER/eproject-rabbitmq:test $USER/eproject-rabbitmq:latest
           docker push $USER/eproject-rabbitmq:latest
