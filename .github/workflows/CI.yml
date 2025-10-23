@@ -63,23 +63,14 @@ jobs:
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env eproject-auth
           docker run -d --name product --network eproject-net --env-file ./product/.env eproject-product
+          sleep 15
 
-      # --- B7. Test Auth và Product ---
-      - name: Test Auth and Product
-        run: |
-          for service in auth product; do
-            echo "Testing $service..."
-            for i in {1..10}; do
-              if docker exec $service curl -s http://localhost:3000/health || \
-                 docker exec $service curl -s http://localhost:3001/health; then
-                echo "$service OK"
-                break
-              else
-                echo "Waiting for $service..."
-                sleep 3
-              fi
-            done
-          done
+      # --- B7. Run tests inside containers ---
+      - name: Run Auth tests
+        run: docker exec auth npm test
+
+      - name: Run Product tests
+        run: docker exec product npm test
 
       # --- B8. Đăng nhập Docker Hub ---
       - name: Login to Docker Hub
