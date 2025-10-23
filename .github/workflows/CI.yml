@@ -1,0 +1,83 @@
+name: CI/CD EProject Microservices
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --- B1. Checkout repository ---
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # --- B2. Create .env files ---
+      - name: Create .env files
+        run: |
+          mkdir -p auth product
+
+          # Auth service
+          echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
+          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
+          echo "PORT=3000" >> auth/.env
+
+          # Product service
+          echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "PORT=3001" >> product/.env
+
+      # --- B3. Build Docker images ---
+      - name: Build Docker images
+        run: |
+          docker build -t auth-service ./auth
+          docker build -t product-service ./product
+
+      # --- B4. Create Docker network ---
+      - name: Create Docker network
+        run: docker network create eproject-net || true
+
+      # --- B5. Start MongoDB ---
+      - name: Start MongoDB
+        run: docker run -d --name mongo --network eproject-net mongo:6
+
+      # --- B6. Start Auth service ---
+      - name: Start Auth service
+        run: |
+          docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
+          for i in {1..20}; do
+            if docker exec auth curl -s http://auth:3000/health; then break; else sleep 3; fi
+          done
+
+      # --- B7. Start Product service ---
+      - name: Start Product service
+        run: |
+          docker run -d --name product --network eproject-net --env-file ./product/.env product-service
+          for i in {1..20}; do
+            if docker exec product curl -s http://auth:4000/health; then break; else sleep 3; fi
+          done
+
+      # --- B8. Run tests inside containers ---
+      - name: Run Auth tests
+        run: docker exec auth npm test
+
+      - name: Run Product tests
+        run: docker exec product npm test
+
+      # --- B9. Cleanup ---
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop auth product mongo || true
+          docker rm auth product mongo || true
+          docker network rm eproject-net || true
+
+
+
+        

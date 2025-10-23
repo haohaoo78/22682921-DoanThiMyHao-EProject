@@ -77,3 +77,7 @@ jobs:
           docker stop auth product mongo || true
           docker rm auth product mongo || true
           docker network rm eproject-net || true
+
+
+
+        
