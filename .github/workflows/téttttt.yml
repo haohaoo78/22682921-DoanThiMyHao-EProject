@@ -106,6 +106,7 @@ jobs:
           for service in auth product order api-gateway; do
             docker tag eproject-$service $USER/$service-ci-test:latest
             docker push $USER/$service-ci-test:latest
+          done
 
       # --- Cleanup ---
       - name: Cleanup
@@ -140,3 +141,4 @@ jobs:
             docker pull $USER/$service-ci-test:latest
             docker tag $USER/$service-ci-test:latest $USER/eproject-$service:latest
             docker push $USER/eproject-$service:latest
+          done
