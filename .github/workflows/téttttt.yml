@@ -38,11 +38,12 @@ jobs:
 
       # --- Run và test Auth service ---
       - name: Run Auth container
-        run: docker run -d --name auth --network eproject-net \
-              -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
-              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-              -p 3000:3000 \
-              eproject-auth
+        run: |
+          docker run -d --name auth --network eproject-net \
+            -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            -p 3000:3000 \
+            eproject-auth
       - name: Test Auth
         run: docker exec auth npm test --if-present
         env:
@@ -50,13 +51,14 @@ jobs:
 
       # --- Run và test Product service ---
       - name: Run Product container
-        run: docker run -d --name product --network eproject-net \
-              -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
-              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-              -e AUTH_SERVICE_URL=http://auth:3000 \
-              -e RABBITMQ_URL=amqp://rabbitmq:5672 \
-              -p 3001:3001 \
-              eproject-product
+        run: |
+          docker run -d --name product --network eproject-net \
+            -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            -e AUTH_SERVICE_URL=http://auth:3000 \
+            -e RABBITMQ_URL=amqp://rabbitmq:5672 \
+            -p 3001:3001 \
+            eproject-product
       - name: Test Product
         run: docker exec product npm test --if-present
         env:
@@ -64,20 +66,22 @@ jobs:
 
       # --- Run Order service ---
       - name: Run Order container
-        run: docker run -d --name order --network eproject-net \
-              -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
-              -e PRODUCT_SERVICE_URL=http://product:3001 \
-              -p 3002:3002 \
-              eproject-order
+        run: |
+          docker run -d --name order --network eproject-net \
+            -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
+            -e PRODUCT_SERVICE_URL=http://product:3001 \
+            -p 3002:3002 \
+            eproject-order
 
       # --- Run API Gateway service ---
       - name: Run Gateway container
-        run: docker run -d --name gateway --network eproject-net \
-              -e AUTH_SERVICE_URL=http://auth:3000 \
-              -e PRODUCT_SERVICE_URL=http://product:3001 \
-              -e ORDER_SERVICE_URL=http://order:3002 \
-              -p 3003:3003 \
-              eproject-api-gateway
+        run: |
+          docker run -d --name gateway --network eproject-net \
+            -e AUTH_SERVICE_URL=http://auth:3000 \
+            -e PRODUCT_SERVICE_URL=http://product:3001 \
+            -e ORDER_SERVICE_URL=http://order:3002 \
+            -p 3003:3003 \
+            eproject-api-gateway
 
       # --- Kiểm tra các service đã chạy ---
       - name: Test services
