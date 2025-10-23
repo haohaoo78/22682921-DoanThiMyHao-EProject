@@ -45,29 +45,31 @@ jobs:
           docker build -t eproject-product ./product
           docker build -t eproject-order ./order
           docker build -t eproject-gateway ./api-gateway
+          docker pull mongo:6
+          docker pull rabbitmq:3-management
 
       # --- B4. Tạo network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- B5. Chạy MongoDB và RabbitMQ ---
+      # --- B5. Chạy MongoDB & RabbitMQ ---
       - name: Start MongoDB & RabbitMQ
         run: |
           docker run -d --name mongo --network eproject-net mongo:6
           docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
 
-      # --- B6. Chạy Auth và Product service ---
+      # --- B6. Chạy Auth và Product ---
       - name: Start Auth and Product
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env eproject-auth
           docker run -d --name product --network eproject-net --env-file ./product/.env eproject-product
 
-      # --- B7. Test Auth & Product ---
+      # --- B7. Test Auth và Product ---
       - name: Test Auth and Product
         run: |
           for service in auth product; do
             echo "Testing $service..."
-            for i in {1..15}; do
+            for i in {1..10}; do
               if docker exec $service curl -s http://localhost:3000/health || \
                  docker exec $service curl -s http://localhost:3001/health; then
                 echo "$service OK"
@@ -93,8 +95,8 @@ jobs:
           docker tag eproject-product $USER/$PROJECT-product:latest
           docker tag eproject-order $USER/$PROJECT-order:latest
           docker tag eproject-gateway $USER/$PROJECT-gateway:latest
-          docker tag mongo $USER/$PROJECT-mongo:latest
-          docker tag rabbitmq $USER/$PROJECT-rabbitmq:latest
+          docker tag mongo:6 $USER/$PROJECT-mongo:latest
+          docker tag rabbitmq:3-management $USER/$PROJECT-rabbitmq:latest
 
           docker push $USER/$PROJECT-auth:latest
           docker push $USER/$PROJECT-product:latest
