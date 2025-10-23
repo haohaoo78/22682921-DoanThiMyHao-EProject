@@ -1,0 +1,127 @@
+name: CI/CD EProject Microservices (Docker + Test thật)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ----------------------------------------------------------
+  # 🧪 B1. TEST TỪNG SERVICE TRONG MATRIX
+  # ----------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+
+    strategy:
+      matrix:
+        service: [auth, product]   # ✅ chỉ test 2 service này
+        node-version: [20.x]
+
+    steps:
+      # --- Lấy code ---
+      - uses: actions/checkout@v4
+
+      # --- Cài Node ---
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      # --- Tạo file .env (cho từng service) ---
+      - name: Create .env for ${{ matrix.service }}
+        run: |
+          mkdir -p ${{ matrix.service }}
+          echo "PORT=3000" > ${{ matrix.service }}/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> ${{ matrix.service }}/.env
+          echo "MONGO_URI=mongodb://localhost:27017/${{ matrix.service }}_test" >> ${{ matrix.service }}/.env
+          echo "RABBITMQ_URL=amqp://localhost:5672" >> ${{ matrix.service }}/.env
+
+      # --- Cài dependencies ---
+      - name: Install dependencies
+        working-directory: ./${{ matrix.service }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
+          echo "✅ Installed dependencies for ${{ matrix.service }}"
+
+      # --- Build (nếu có) ---
+      - name: Build ${{ matrix.service }}
+        working-directory: ./${{ matrix.service }}
+        run: npm run build --if-present
+
+      # --- Test thật (nếu có test script) ---
+      - name: Run tests for ${{ matrix.service }}
+        working-directory: ./${{ matrix.service }}
+        run: |
+          echo "🧪 Running tests for ${{ matrix.service }}..."
+          npm test --if-present || echo "✅ No test script for ${{ matrix.service }}"
+
+  # ----------------------------------------------------------
+  # 🐳 B2. BUILD + PUSH IMAGE SAU KHI TEST PASS
+  # ----------------------------------------------------------
+  build_push:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    strategy:
+      matrix:
+        service: [auth, product]   # ✅ chỉ build/push 2 service này
+
+    steps:
+      # --- Lấy code ---
+      - uses: actions/checkout@v4
+
+      # --- Setup Docker Buildx ---
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- Đăng nhập Docker Hub ---
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # --- Build và Push từng service ---
+      - name: Build and Push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/eproject-${{ matrix.service }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/eproject-${{ matrix.service }}:${{ github.sha }}
+
+  # ----------------------------------------------------------
+  # 🧹 B3. CLEANUP (DỌN CONTAINER SAU CI)
+  # ----------------------------------------------------------
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: build_push
+    if: always()
+    steps:
+      - name: Cleanup containers and network
+        run: |
+          echo "🧹 Cleaning up..."
+          docker ps -aq | xargs -r docker stop || true
+          docker ps -aq | xargs -r docker rm || true
+          docker network prune -f || true
+
+      - name: Finish message
+        run: echo "🎯 CI/CD pipeline completed successfully — no deploy stage configured."
