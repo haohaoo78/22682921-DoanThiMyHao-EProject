@@ -31,7 +31,6 @@ Cách giao tiếp: Client → Gateway → Service; Product → Order qua RabbitM
 ## 2. Cài đặt
 ### 2.1. Download source code
 git clone https://github.com/haohaoo78/22682921-DoanThiMyHao-EProject.git
-cd EProject
 
 ### 2.2. Cài đặt dependencies
 
