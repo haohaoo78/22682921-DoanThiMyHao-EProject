@@ -8,139 +8,120 @@ on:
 
 jobs:
   # ----------------------------------------------------------
-  # 🧪 B1. TEST TỪNG SERVICE (Docker + MongoDB + RabbitMQ thật)
+  # 🧪 B1. TEST TỪNG SERVICE THẬT
   # ----------------------------------------------------------
-  test:
+  test_services:
     runs-on: ubuntu-latest
-
-    services:
-      mongodb:
-        image: mongo:6
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=10
-
-      rabbitmq:
-        image: rabbitmq:3-management
-        ports:
-          - 5672:5672
-        options: >-
-          --health-cmd="rabbitmq-diagnostics -q ping"
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=10
-
-    strategy:
-      matrix:
-        service: [auth, product]
-        node-version: [20.x]
-
     steps:
-      # --- Lấy code ---
       - uses: actions/checkout@v4
 
-      # --- Cài Node.js ---
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      # --- Tạo Docker network ---
+      # --- Setup Docker network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- Build service image ---
-      - name: Build ${{ matrix.service }} image
-        run: docker build -t eproject-${{ matrix.service }} ./${{ matrix.service }}
+      # --- Build all images ---
+      - name: Build Docker images
+        run: |
+          docker build -t eproject-auth ./auth
+          docker build -t eproject-product ./product
+          docker build -t eproject-order ./order
+          docker build -t eproject-gateway ./api-gateway
+          docker pull mongo:6
+          docker pull rabbitmq:3-management
 
-      # --- Chạy Auth container trước nếu cần ---
-      - name: Start Auth container (for Product test)
-        if: matrix.service == 'product'
+      # --- Run MongoDB & RabbitMQ ---
+      - name: Start MongoDB & RabbitMQ
+        run: |
+          docker run -d --name mongo --network eproject-net mongo:6
+          docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
+          sleep 10
+
+      # --- Run Auth service ---
+      - name: Run Auth container
         run: |
           docker run -d --name auth --network eproject-net \
-            -e MONGODB_AUTH_URI=mongodb://mongodb:27017/auth_test \
+            -e MONGODB_AUTH_URI=mongodb://mongo:27017/auth_test \
             -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
             -p 3000:3000 \
             eproject-auth
           sleep 15
 
-      # --- Chạy service container để test ---
-      - name: Start ${{ matrix.service }} container
-        run: |
-          ENV_FILE=./${{ matrix.service }}/.env
-          mkdir -p ${{ matrix.service }}
-          
-          if [ "${{ matrix.service }}" = "auth" ]; then
-            echo "MONGODB_AUTH_URI=mongodb://mongodb:27017/auth_test" > $ENV_FILE
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> $ENV_FILE
-            echo "PORT=3000" >> $ENV_FILE
-          fi
-          
-          if [ "${{ matrix.service }}" = "product" ]; then
-            echo "MONGODB_PRODUCT_URI=mongodb://mongodb:27017/product_test" > $ENV_FILE
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }}" >> $ENV_FILE
-            echo "AUTH_SERVICE_URL=http://auth:3000" >> $ENV_FILE
-            echo "PORT=3001" >> $ENV_FILE
-          fi
-
-          echo "RABBITMQ_URL=amqp://rabbitmq:5672" >> $ENV_FILE
-
-          docker run -d --name ${{ matrix.service }} --network eproject-net \
-            --env-file $ENV_FILE \
-            -p $([[ "${{ matrix.service }}" = "auth" ]] && echo 3000 || echo 3001):$([[ "${{ matrix.service }}" = "auth" ]] && echo 3000 || echo 3001) \
-            eproject-${{ matrix.service }}
-          sleep 15
-
-      # --- Chạy test thật ---
-      - name: Run tests for ${{ matrix.service }}
-        run: docker exec ${{ matrix.service }} npm test --if-present
+      # --- Run Auth tests ---
+      - name: Test Auth
+        run: docker exec auth npm test --if-present
         env:
           NODE_ENV: test
+
+      # --- Run Product service (phụ thuộc Auth) ---
+      - name: Run Product container
+        run: |
+          docker run -d --name product --network eproject-net \
+            -e MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_test \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET || 'dummysecret' }} \
+            -e AUTH_SERVICE_URL=http://auth:3000 \
+            -e RABBITMQ_URL=amqp://rabbitmq:5672 \
+            -p 3001:3001 \
+            eproject-product
+          sleep 15
+
+      # --- Run Product tests ---
+      - name: Test Product
+        run: docker exec product npm test --if-present
+        env:
+          NODE_ENV: test
+
+      # --- Run Order service ---
+      - name: Run Order container
+        run: |
+          docker run -d --name order --network eproject-net \
+            -e MONGODB_ORDER_URI=mongodb://mongo:27017/order_test \
+            -e PRODUCT_SERVICE_URL=http://product:3001 \
+            -p 3002:3002 \
+            eproject-order
+          sleep 10
+
+      # --- Run Gateway service ---
+      - name: Run Gateway container
+        run: |
+          docker run -d --name gateway --network eproject-net \
+            -e AUTH_SERVICE_URL=http://auth:3000 \
+            -e PRODUCT_SERVICE_URL=http://product:3001 \
+            -e ORDER_SERVICE_URL=http://order:3002 \
+            -p 3003:3003 \
+            eproject-gateway
+          sleep 10
 
   # ----------------------------------------------------------
   # 🐳 B2. BUILD + PUSH IMAGE SAU KHI TEST PASS
   # ----------------------------------------------------------
   build_push:
     runs-on: ubuntu-latest
-    needs: test
+    needs: test_services
     if: github.event_name == 'push'
-
-    strategy:
-      matrix:
-        service: [auth, product]
-
     steps:
-      # --- Lấy code ---
       - uses: actions/checkout@v4
 
-      # --- Setup Docker Buildx ---
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # --- Đăng nhập Docker Hub ---
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # --- Build và Push từng service ---
-      - name: Build and Push ${{ matrix.service }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ./${{ matrix.service }}
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/eproject-${{ matrix.service }}:latest
-            ${{ secrets.DOCKER_USERNAME }}/eproject-${{ matrix.service }}:${{ github.sha }}
+      - name: Push all images
+        run: |
+          USER=${{ secrets.DOCKER_USERNAME }}
+          docker tag eproject-auth $USER/eproject-auth:latest
+          docker tag eproject-product $USER/eproject-product:latest
+          docker tag eproject-order $USER/eproject-order:latest
+          docker tag eproject-gateway $USER/eproject-gateway:latest
+
+          docker push $USER/eproject-auth:latest
+          docker push $USER/eproject-product:latest
+          docker push $USER/eproject-order:latest
+          docker push $USER/eproject-gateway:latest
 
   # ----------------------------------------------------------
-  # 🧹 B3. CLEANUP (DỌN CONTAINER SAU CI)
+  # 🧹 B3. CLEANUP
   # ----------------------------------------------------------
   cleanup:
     runs-on: ubuntu-latest
@@ -149,10 +130,6 @@ jobs:
     steps:
       - name: Cleanup containers and network
         run: |
-          echo "🧹 Cleaning up..."
-          docker ps -aq | xargs -r docker stop || true
-          docker ps -aq | xargs -r docker rm || true
-          docker network prune -f || true
-
-      - name: Finish message
-        run: echo "🎯 CI/CD pipeline completed successfully — tested Auth & Product only."
+          docker stop auth product order gateway mongo rabbitmq || true
+          docker rm auth product order gateway mongo rabbitmq || true
+          docker network rm eproject-net || true
