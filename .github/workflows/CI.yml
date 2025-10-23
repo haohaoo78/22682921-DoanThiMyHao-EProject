@@ -52,7 +52,7 @@ jobs:
         run: |
           docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
           for i in {1..20}; do
-            if docker exec auth curl -s http://auth:3000/health; then break; else sleep 3; fi
+            if docker exec auth curl -s http://localhost:3000/health; then break; else sleep 3; fi
           done
 
       # --- B7. Start Product service ---
@@ -60,7 +60,7 @@ jobs:
         run: |
           docker run -d --name product --network eproject-net --env-file ./product/.env product-service
           for i in {1..20}; do
-            if docker exec product curl -s http://auth:4000/health; then break; else sleep 3; fi
+            if docker exec product curl -s http://localhost:3001/health; then break; else sleep 3; fi
           done
 
       # --- B8. Run tests inside containers ---
@@ -70,14 +70,23 @@ jobs:
       - name: Run Product tests
         run: docker exec product npm test
 
-      # --- B9. Cleanup ---
+      # --- B9. Login to DockerHub ---
+      - name: Login to DockerHub
+        run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+      # --- B10. Tag and Push Docker images ---
+      - name: Push images to DockerHub
+        run: |
+          docker tag auth-service ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
+          docker tag product-service ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+
+          docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+
+      # --- B11. Cleanup ---
       - name: Cleanup
         if: always()
         run: |
           docker stop auth product mongo || true
           docker rm auth product mongo || true
           docker network rm eproject-net || true
-
-
-
-        
