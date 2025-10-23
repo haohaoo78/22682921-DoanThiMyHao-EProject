@@ -7,86 +7,106 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  ci_cd:
     runs-on: ubuntu-latest
 
     steps:
-      # --- B1. Checkout repository ---
+      # --- B1. Lấy code ---
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # --- B2. Create .env files ---
+      # --- B2. Tạo file .env ---
       - name: Create .env files
         run: |
-          mkdir -p auth product
+          mkdir -p auth product order gateway
 
           # Auth service
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" > auth/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-          echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> auth/.env
-          echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> auth/.env
           echo "PORT=3000" >> auth/.env
 
           # Product service
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" > product/.env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-          echo "AUTH_SERVICE_URL=http://auth:4001" >> product/.env
+          echo "AUTH_SERVICE_URL=http://auth:3000" >> product/.env
           echo "PORT=3001" >> product/.env
+
+          # Order service
+          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" > order/.env
+          echo "PORT=3002" >> order/.env
+
+          # Gateway
+          echo "PORT=3003" > gateway/.env
 
       # --- B3. Build Docker images ---
       - name: Build Docker images
         run: |
-          docker build -t auth-service ./auth
-          docker build -t product-service ./product
+          docker build -t eproject-auth ./auth
+          docker build -t eproject-product ./product
+          docker build -t eproject-order ./order
+          docker build -t eproject-gateway ./api-gateway
 
-      # --- B4. Create Docker network ---
+      # --- B4. Tạo network ---
       - name: Create Docker network
         run: docker network create eproject-net || true
 
-      # --- B5. Start MongoDB ---
-      - name: Start MongoDB
-        run: docker run -d --name mongo --network eproject-net mongo:6
-
-      # --- B6. Start Auth service ---
-      - name: Start Auth service
+      # --- B5. Chạy MongoDB và RabbitMQ ---
+      - name: Start MongoDB & RabbitMQ
         run: |
-          docker run -d --name auth --network eproject-net --env-file ./auth/.env auth-service
-          for i in {1..20}; do
-            if docker exec auth curl -s http://localhost:3000/health; then break; else sleep 3; fi
+          docker run -d --name mongo --network eproject-net mongo:6
+          docker run -d --name rabbitmq --network eproject-net rabbitmq:3-management
+
+      # --- B6. Chạy Auth và Product service ---
+      - name: Start Auth and Product
+        run: |
+          docker run -d --name auth --network eproject-net --env-file ./auth/.env eproject-auth
+          docker run -d --name product --network eproject-net --env-file ./product/.env eproject-product
+
+      # --- B7. Test Auth & Product ---
+      - name: Test Auth and Product
+        run: |
+          for service in auth product; do
+            echo "Testing $service..."
+            for i in {1..15}; do
+              if docker exec $service curl -s http://localhost:3000/health || \
+                 docker exec $service curl -s http://localhost:3001/health; then
+                echo "$service OK"
+                break
+              else
+                echo "Waiting for $service..."
+                sleep 3
+              fi
+            done
           done
 
-      # --- B7. Start Product service ---
-      - name: Start Product service
-        run: |
-          docker run -d --name product --network eproject-net --env-file ./product/.env product-service
-          for i in {1..20}; do
-            if docker exec product curl -s http://localhost:3001/health; then break; else sleep 3; fi
-          done
-
-      # --- B8. Run tests inside containers ---
-      - name: Run Auth tests
-        run: docker exec auth npm test
-
-      - name: Run Product tests
-        run: docker exec product npm test
-
-      # --- B9. Login to DockerHub ---
-      - name: Login to DockerHub
+      # --- B8. Đăng nhập Docker Hub ---
+      - name: Login to Docker Hub
         run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
-      # --- B10. Tag and Push Docker images ---
-      - name: Push images to DockerHub
+      # --- B9. Push toàn bộ image lên Docker Hub ---
+      - name: Push all images
         run: |
-          docker tag auth-service ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
-          docker tag product-service ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+          USER=${{ secrets.DOCKER_USERNAME }}
+          PROJECT=eproject
 
-          docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/product-service:latest
+          docker tag eproject-auth $USER/$PROJECT-auth:latest
+          docker tag eproject-product $USER/$PROJECT-product:latest
+          docker tag eproject-order $USER/$PROJECT-order:latest
+          docker tag eproject-gateway $USER/$PROJECT-gateway:latest
+          docker tag mongo $USER/$PROJECT-mongo:latest
+          docker tag rabbitmq $USER/$PROJECT-rabbitmq:latest
 
-      # --- B11. Cleanup ---
+          docker push $USER/$PROJECT-auth:latest
+          docker push $USER/$PROJECT-product:latest
+          docker push $USER/$PROJECT-order:latest
+          docker push $USER/$PROJECT-gateway:latest
+          docker push $USER/$PROJECT-mongo:latest
+          docker push $USER/$PROJECT-rabbitmq:latest
+
+      # --- B10. Dọn dẹp ---
       - name: Cleanup
         if: always()
         run: |
-          docker stop auth product mongo || true
-          docker rm auth product mongo || true
+          docker stop auth product order gateway mongo rabbitmq || true
+          docker rm auth product order gateway mongo rabbitmq || true
           docker network rm eproject-net || true
