@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs"); 
 const jwt = require("jsonwebtoken"); 
 const UserRepository = require("../repositories/userRepository"); 
-const config = require("../config"); 
+const config = require("../config/index"); 
 const User = require("../models/user"); 
 
 /**

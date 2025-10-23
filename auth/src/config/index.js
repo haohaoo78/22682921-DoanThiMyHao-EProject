@@ -6,7 +6,7 @@ module.exports = {
   port: process.env.PORT || 3000,
 
   testUser: {
-    username: process.env.TEST_USER || "Haohao78091111",
-    password: process.env.TEST_PASS || "Shatou5114*",
+    username: process.env.TEST_USER || "testuser",
+    password: process.env.TEST_PASS || "password",
   },
 };
