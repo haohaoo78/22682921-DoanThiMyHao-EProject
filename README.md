@@ -1,128 +1,137 @@
-# EProject – Microservices System
-## Giới thiệu
+EProject – Microservices System
 
-Dự án EProject bao gồm các service chính:
+1. Giới thiệu
 
-Auth Service – Xác thực và đăng ký người dùng
+EProject là hệ thống Microservices quản lý sản phẩm, đơn hàng và người dùng, đảm bảo tách biệt, mở rộng và bảo mật.
 
-Product Service – Quản lý sản phẩm
+5 ý tóm tắt:
 
-Order Service – Xử lý đơn hàng
+Vấn đề giải quyết: Quản lý người dùng, sản phẩm, đơn hàng, tách biệt dữ liệu và bảo mật.
 
-API Gateway – Cổng giao tiếp tập trung giữa client và các service
+Số lượng dịch vụ: 4 service chính (Auth, Product, Order, API Gateway) + hạ tầng (RabbitMQ, MongoDB).
 
-RabbitMQ – Message broker để giao tiếp giữa các service
+Ý nghĩa từng service:
 
-MongoDB – Cơ sở dữ liệu NoSQL lưu thông tin người dùng, sản phẩm và đơn hàng
+Auth: Xác thực và quản lý người dùng
 
-## Cài đặt
-### Download source code
-git clone <https://github.com/haohaoo78/22682921-DoanThiMyHao-EProject.git>
+Product: Quản lý sản phẩm, đặt hàng
 
+Order: Xử lý đơn hàng
+
+API Gateway: Tập trung request và bảo vệ endpoint
+
+RabbitMQ: Giao tiếp bất đồng bộ giữa service
+
+MongoDB: Lưu dữ liệu riêng
+
+Mẫu thiết kế: Microservices, Repository/Service, Event-driven, API Gateway.
+
+Cách giao tiếp: Client → Gateway → Service; Product → Order qua RabbitMQ; mỗi service dùng DB riêng.
+
+2. Cài đặt
+2.1. Download source code
+git clone https://github.com/haohaoo78/22682921-DoanThiMyHao-EProject.git
 cd EProject
 
-### Cài đặt dependencies
-Trong từng service (cd services), chạy:
+2.2. Cài đặt dependencies
+
+Trong từng service:
 
 npm install
 
-### Thiết lập microservices
+2.3. Thiết lập môi trường
 
-File docker-compose.yml đã cấu hình sẵn các service:
+Tạo file .env cho từng service:
 
-mongo (database)
+auth/.env
 
-rabbitmq (message broker)
-
-auth (authentication)
-
-product (product management)
-
-order (order handling)
-
-gateway (API gateway)
-
-### Tạo file .env cho từng service
-
-#### auth/.env
-
-MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
-
+MONGODB_AUTH_URI=mongodb://mongo:27017/authdb_test
 JWT_SECRET=<your_jwt_secret_key>
+LOGIN_TEST_USER=testuser
+LOGIN_TEST_PASSWORD=password
 
 
-#### product/.env
+product/.env
 
-MONGODB_AUTH_URI= mongodb://<mongo_host>:27017/authdb
-
-MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
-
+MONGODB_AUTH_URI=mongodb://mongo:27017/authdb_test
+MONGODB_PRODUCT_URI=mongodb://mongo:27017/productdb_test
 JWT_SECRET=<your_jwt_secret_key>
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=name_test
+RABBITMQ_PASS=pass_test
 
 
-#### order/.env
+order/.env
 
-MONGODB_ORDER_URI=mongodb://<mongo_host>:27017/orderdb
-
-MONGODB_AUTH_URI=mongodb://<mongo_host>:27017/authdb
-
-MONGODB_PRODUCT_URI= mongodb://<mongo_host>:27017/productdb
-
+MONGODB_ORDER_URI=mongodb://mongo:27017/orderdb_test
+MONGODB_AUTH_URI=mongodb://mongo:27017/authdb_test
+MONGODB_PRODUCT_URI=mongodb://mongo:27017/productdb_test
 JWT_SECRET=<your_jwt_secret_key>
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USER=name_test
+RABBITMQ_PASS=pass_test
 
-### Chạy toàn bộ hệ thống bằng Docker
 
+2.4. Chạy hệ thống bằng Docker
 docker-compose up --build
-![alt text](img_readme/image.png)
-![alt text](img_readme/image-9.png)
-### Sau khi chạy, hệ thống hoạt động ở:
+![alt text](./img_readme/image.png)
+![alt text](./img_readme/image-1.png)
+3. Kiểm thử bằng Postman
 
-Auth Service: http://localhost:3000
-
-Product Service: http://localhost:3001
-
-Order Service: http://localhost:3002
-
-API Gateway: http://localhost:3003
-
-RabbitMQ Dashboard: http://localhost:15672
- (user: myname, pass: mypass)
-
-MongoDB: mongodb://localhost:27017
-(default database: authdb, productdb, orderdb)
-
-## Kiểm thử bằng Postman
 
 Cổng Gateway: 3003
 
-Các service giao tiếp thông qua API Gateway để đảm bảo tính bảo mật và thống nhất endpoint.
+Auth Service:
 
-### Auth Service - Port 3000
+POST /auth/register – Đăng ký
+![alt text](./img_readme/image-2.png)
+-- check in database
+![alt text](./img_readme/image-12.png)
+POST /auth/login – Đăng nhập, nhận JWT token
+![alt text](./img_readme/image-3.png)
+Product Service:
 
-POST /auth/register → Đăng ký tài khoản
-![alt text](img_readme/image-1.png)
+POST /products/api/products – Tạo sản phẩm (cần JWT token)
+-- Khi không truyền vào token
+![alt text](./img_readme/image-4.png)
+-- Khi có token
+![alt text](./img_readme/image-5.png)
+-- check in database 
+![alt text](./img_readme/image-11.png)
+GET /products/api/products – Lấy danh sách sản phẩm
+![alt text](./img_readme/image-6.png)
+POST /products/api/products/buy – Đặt hàng
+![alt text](./img_readme/image-7.png)
+GET /products/api/products/id – Xem thông tin sản phẩm theo mã sản phẩm 
+![alt text](./img_readme/image-8.png)
 
-check in database
-![alt text](img_readme/image-2.png)
+Order Service:
 
-POST /auth/login → Đăng nhập, nhận JWT token
-![alt text](img_readme/image-3.png)
+Tự động nhận đơn hàng từ Product Service qua RabbitMQ và lưu MongoDB
 
-### Product Service - Port 3001
+![alt text](./img_readme/image-9.png)
+-- check in database
+![alt text](./img_readme/image-10.png)
+4. CI/CD (GitHub Actions)
 
-POST /products/api/products → Tạo sản phẩm (cần JWT token)
-![alt text](img_readme/image-4.png)
+Hệ thống sử dụng GitHub Actions để tự động:
+![alt text](./img_readme/image-13.png)
+![alt text](./img_readme/image-14.png)
+![alt text](./img_readme/image-15.png)
 
-check in database
-![alt text](img_readme/image-5.png)
+Build Docker image cho từng service.
+![alt text](./img_readme/image-16.png)
+Test các service bằng container tạm.
+![alt text](./img_readme/image-18.png)
+![alt text](./img_readme/image-19.png)
 
-GET /products/api/products → Lấy danh sách sản phẩm
-![alt text](img_readme/image-6.png)
+Push Docker image chính thức lên Docker Hub nếu tất cả test pass.
+![alt text](./img_readme/image-20.png)
 
-POST products/api/products/buy/ → Đặt hàng sản phẩm
-![alt text](img_readme/image-7.png)
 
-### Order Service - Port 3002
-Tự động nhận dữ liệu đơn hàng được gửi từ Product Service thông qua RabbitMQ và lưu trữ vào MongoDB.
-![alt text](img_readme/image-8.png)
-.
+
+
+
+
